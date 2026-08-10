@@ -1,0 +1,4 @@
+interface:
+  display_name: "PRを作成"
+  short_description: "ブランチを公開してドラフトPRを作成"
+  default_prompt: "$create-pull-request を使って、現在のブランチをpushし、内容を整えたドラフトPRを作成してください。"

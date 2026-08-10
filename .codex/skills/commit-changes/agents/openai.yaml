@@ -1,0 +1,4 @@
+interface:
+  display_name: "変更をコミット"
+  short_description: "変更範囲を確認して安全にコミット"
+  default_prompt: "$commit-changes を使って、対象範囲を確認し、検証してから変更をコミットしてください。"
