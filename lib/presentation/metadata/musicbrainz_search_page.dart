@@ -85,7 +85,12 @@ class _MusicBrainzSearchPageState extends ConsumerState<MusicBrainzSearchPage> {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
-            ..._results.map(_ReleaseCandidateTile.new),
+            ..._results.map(
+              (release) => _ReleaseCandidateTile(
+                release,
+                onTap: () => _showReleaseDetails(release),
+              ),
+            ),
           ] else if (!_loading && _error == null && _searched) ...[
             const SizedBox(height: 24),
             const Text('No matching releases found.'),
@@ -131,12 +136,24 @@ class _MusicBrainzSearchPageState extends ConsumerState<MusicBrainzSearchPage> {
       });
     }
   }
+
+  Future<void> _showReleaseDetails(MusicBrainzRelease release) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => _ReleaseDetailsDialog(
+        release: release,
+        loadRelease: () =>
+            ref.read(musicBrainzServiceProvider).getRelease(release.id),
+      ),
+    );
+  }
 }
 
 class _ReleaseCandidateTile extends StatelessWidget {
-  const _ReleaseCandidateTile(this.release);
+  const _ReleaseCandidateTile(this.release, {required this.onTap});
 
   final MusicBrainzRelease release;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -151,7 +168,82 @@ class _ReleaseCandidateTile extends StatelessWidget {
         leading: const Icon(Icons.album_outlined),
         title: Text(release.title),
         subtitle: Text(details.isEmpty ? release.id : details),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
       ),
     );
   }
+}
+
+class _ReleaseDetailsDialog extends StatelessWidget {
+  const _ReleaseDetailsDialog({
+    required this.release,
+    required this.loadRelease,
+  });
+
+  final MusicBrainzRelease release;
+  final Future<MusicBrainzRelease> Function() loadRelease;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(release.title),
+      content: SizedBox(
+        width: 560,
+        child: FutureBuilder<MusicBrainzRelease>(
+          future: loadRelease(),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Text('Unable to load track list: ${snapshot.error}');
+            }
+            if (!snapshot.hasData) {
+              return const SizedBox(
+                height: 120,
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            final detailedRelease = snapshot.data!;
+            return ListView(
+              shrinkWrap: true,
+              children: [
+                for (final medium in detailedRelease.media) ...[
+                  ListTile(
+                    dense: true,
+                    title: Text(
+                      'Disc ${medium.position}${medium.format == null ? '' : ' · ${medium.format}'}',
+                    ),
+                  ),
+                  for (final track in medium.tracks)
+                    ListTile(
+                      dense: true,
+                      leading: SizedBox(
+                        width: 32,
+                        child: Text('${track.number ?? track.position}'),
+                      ),
+                      title: Text(track.title),
+                      subtitle: track.lengthMilliseconds == null
+                          ? null
+                          : Text(_formatLength(track.lengthMilliseconds!)),
+                    ),
+                ],
+              ],
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+      ],
+    );
+  }
+}
+
+String _formatLength(int milliseconds) {
+  final duration = Duration(milliseconds: milliseconds);
+  final minutes = duration.inMinutes;
+  final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+  return '$minutes:$seconds';
 }

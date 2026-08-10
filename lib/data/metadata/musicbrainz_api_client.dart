@@ -113,6 +113,38 @@ class MusicBrainzApiClient implements MusicBrainzService {
     return releases;
   }
 
+  @override
+  Future<MusicBrainzRelease> getRelease(String id) async {
+    final normalizedId = id.trim();
+    if (normalizedId.isEmpty) {
+      throw const MusicBrainzException('A release MBID is required.');
+    }
+    final cacheKey = 'release:$normalizedId';
+    final cached = _cache[cacheKey];
+    if (cached != null && cached.isNotEmpty) return cached.first;
+
+    final uri = Uri.https('musicbrainz.org', '/ws/2/release/$normalizedId', {
+      'inc': 'artist-credits+media+recordings',
+      'fmt': 'json',
+    });
+    final response = await _get(uri);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw MusicBrainzException(
+        'MusicBrainz release lookup failed with HTTP ${response.statusCode}.',
+      );
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map) {
+      throw const MusicBrainzException('Invalid MusicBrainz release response.');
+    }
+    final release = _parseRelease(decoded);
+    if (release == null) {
+      throw const MusicBrainzException('MusicBrainz response has no release.');
+    }
+    _cache[cacheKey] = [release];
+    return release;
+  }
+
   Future<MusicBrainzHttpResponse> _get(Uri uri) async {
     final previous = _requestLock;
     final completer = Completer<void>();
@@ -153,7 +185,46 @@ class MusicBrainzApiClient implements MusicBrainzService {
       releaseDate: entry['date'] as String?,
       country: entry['country'] as String?,
       trackCount: (entry['track-count'] as num?)?.toInt(),
+      media: _parseMedia(entry['media']),
     );
+  }
+
+  List<MusicBrainzMedium> _parseMedia(Object? value) {
+    if (value is! List) return const [];
+    return value
+        .whereType<Map>()
+        .map((medium) {
+          final tracks = medium['tracks'];
+          return MusicBrainzMedium(
+            position: (medium['position'] as num?)?.toInt() ?? 0,
+            format: medium['format'] as String?,
+            title: medium['title'] as String?,
+            tracks: tracks is List
+                ? tracks
+                      .whereType<Map>()
+                      .map((track) {
+                        final recording = track['recording'];
+                        final recordingTitle = recording is Map
+                            ? recording['title'] as String?
+                            : null;
+                        return MusicBrainzTrack(
+                          position: (track['position'] as num?)?.toInt() ?? 0,
+                          title:
+                              track['title'] as String? ?? recordingTitle ?? '',
+                          number: track['number'] as String?,
+                          lengthMilliseconds:
+                              (track['length'] as num?)?.toInt() ??
+                              (recording is Map
+                                  ? (recording['length'] as num?)?.toInt()
+                                  : null),
+                        );
+                      })
+                      .where((track) => track.title.isNotEmpty)
+                      .toList(growable: false)
+                : const [],
+          );
+        })
+        .toList(growable: false);
   }
 
   String _escapeQuery(String value) =>

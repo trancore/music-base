@@ -46,6 +46,28 @@ void main() {
 
     expect(httpClient.requestCount, 1);
   });
+
+  test('looks up a release and maps media track order', () async {
+    final httpClient = _FakeMusicBrainzHttpClient(
+      const MusicBrainzHttpResponse(
+        200,
+        '{"id":"release-id","title":"Album","media":[{"position":1,'
+        '"format":"CD","tracks":[{"position":1,"number":"1",'
+        '"title":"Intro","length":90000}]}]}',
+      ),
+    );
+    final client = MusicBrainzApiClient(
+      httpClient: httpClient,
+      minimumRequestInterval: Duration.zero,
+    );
+
+    final release = await client.getRelease('release-id');
+
+    expect(release.media.single.format, 'CD');
+    expect(release.media.single.tracks.single.title, 'Intro');
+    expect(httpClient.uri!.path, contains('/release/release-id'));
+    expect(httpClient.uri!.queryParameters['inc'], contains('media'));
+  });
 }
 
 class _FakeMusicBrainzHttpClient implements MusicBrainzHttpClient {
