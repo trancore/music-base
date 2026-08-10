@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../presentation/home/home_page.dart';
+import '../presentation/metadata/musicbrainz_search_page.dart';
 import '../presentation/playlists/playlists_page.dart';
 import '../presentation/settings/settings_page.dart';
 
@@ -17,6 +18,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/playlists',
             builder: (context, state) => const PlaylistsPage(),
+          ),
+          GoRoute(
+            path: '/metadata',
+            builder: (context, state) => const MusicBrainzSearchPage(),
           ),
           GoRoute(
             path: '/settings',
@@ -42,13 +47,15 @@ class AppShell extends StatelessWidget {
           NavigationRail(
             selectedIndex: switch (location) {
               '/playlists' => 1,
-              '/settings' => 2,
+              '/metadata' => 2,
+              '/settings' => 3,
               _ => 0,
             },
             onDestinationSelected: (index) {
               context.go(switch (index) {
                 1 => '/playlists',
-                2 => '/settings',
+                2 => '/metadata',
+                3 => '/settings',
                 _ => '/',
               });
             },
@@ -63,6 +70,11 @@ class AppShell extends StatelessWidget {
                 icon: Icon(Icons.queue_music_outlined),
                 selectedIcon: Icon(Icons.queue_music),
                 label: Text('Playlists'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.auto_awesome_outlined),
+                selectedIcon: Icon(Icons.auto_awesome),
+                label: Text('Metadata'),
               ),
               NavigationRailDestination(
                 icon: Icon(Icons.settings_outlined),
