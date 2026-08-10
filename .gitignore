@@ -4,6 +4,10 @@
 .flutter-plugins-dependencies
 .packages
 
+# IDE metadata
+.idea/
+*.iml
+
 # Flutter build artifacts
 build/
 
