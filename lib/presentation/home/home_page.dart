@@ -100,20 +100,17 @@ class HomePage extends ConsumerWidget {
                 isCurrent:
                     snapshot.currentTrack?.sourcePath == track.sourcePath,
                 isPlaying: snapshot.isPlaying,
-                onPlay: track.isRemote
-                    ? null
-                    : () async {
-                        if (snapshot.currentTrack?.sourcePath ==
-                                track.sourcePath &&
-                            snapshot.isPlaying) {
-                          await playback.pause();
-                        } else if (snapshot.currentTrack?.sourcePath ==
-                            track.sourcePath) {
-                          await playback.resume();
-                        } else {
-                          await playback.playTrack(track);
-                        }
-                      },
+                onPlay: () async {
+                  if (snapshot.currentTrack?.sourcePath == track.sourcePath &&
+                      snapshot.isPlaying) {
+                    await playback.pause();
+                  } else if (snapshot.currentTrack?.sourcePath ==
+                      track.sourcePath) {
+                    await playback.resume();
+                  } else {
+                    await playback.playTrack(track);
+                  }
+                },
               ),
             ),
           if (snapshot.currentTrack != null) ...[
@@ -137,7 +134,7 @@ class _TrackTile extends StatelessWidget {
   final LibraryTrack track;
   final bool isCurrent;
   final bool isPlaying;
-  final VoidCallback? onPlay;
+  final VoidCallback onPlay;
 
   @override
   Widget build(BuildContext context) {
@@ -146,19 +143,9 @@ class _TrackTile extends StatelessWidget {
       title: Text(track.title ?? track.sourcePath),
       subtitle: Text(track.sourcePath),
       trailing: IconButton(
-        tooltip: track.isRemote
-            ? 'SMB direct playback is not available yet'
-            : isCurrent && isPlaying
-            ? 'Pause'
-            : 'Play',
+        tooltip: isCurrent && isPlaying ? 'Pause' : 'Play',
         onPressed: onPlay,
-        icon: Icon(
-          track.isRemote
-              ? Icons.cloud_off
-              : isCurrent && isPlaying
-              ? Icons.pause
-              : Icons.play_arrow,
-        ),
+        icon: Icon(isCurrent && isPlaying ? Icons.pause : Icons.play_arrow),
       ),
     );
   }
