@@ -1,5 +1,9 @@
 # Music library
 
-The app scans the configured local directory or SMB share and caches track, album, and artist information locally. The selected library location remains the source of truth.
+Select a local music directory from Settings and the app scans it recursively. FLAC and MP3 files are currently included, and the file name is used as the track title until metadata parsing is added.
+
+The paths and basic track information are cached in the local database. The selected library location remains the source of truth; audio files are never copied into the database.
+
+If the selected location is unavailable or scanning fails, the app shows a recoverable error so it can be retried. SMB library access will be added in a later Windows feature.
 
 Cached information can be shown while the library location is unavailable, but playback requires access to the selected location.
