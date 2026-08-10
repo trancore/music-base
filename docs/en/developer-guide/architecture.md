@@ -22,6 +22,8 @@ Audio playback is accessed through the `PlaybackService` abstraction. The curren
 
 Playlists are persisted through the `PlaylistRepository` abstraction. The current implementation stores playlist names and source paths in SharedPreferences, then resolves those paths against the current library cache when a playlist is played. Playlist data never copies the audio files.
 
+MusicBrainz integration is accessed through `MusicBrainzService`. The API client maps JSON responses to `MusicBrainzRelease` models and applies an identifying User-Agent, a maximum request rate of one request per second, and an in-memory search-result cache.
+
 SMB connectivity is accessed through the `SmbService` abstraction. Host, share, subfolder, and username are stored as settings, while the password is stored with `flutter_secure_storage`. The SMB scanner recursively walks the share, filters FLAC/MP3 files, and caches them in the library database as a separate operation from connection testing. SMB playback maps `StreamAudioSource` range requests to SMB partial reads, so the audio file is played without copying it into the app.
 
 Disconnected shares, authentication failures, and missing files are recoverable errors and must not crash the UI or the whole service layer.
