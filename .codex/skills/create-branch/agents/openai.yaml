@@ -1,0 +1,7 @@
+interface:
+  display_name: "Create Branch"
+  short_description: "安全な作業ブランチ作成ワークフロー"
+  default_prompt: "$create-branch を使って、この変更用の安全な作業ブランチを作成してください。"
+
+policy:
+  allow_implicit_invocation: true
