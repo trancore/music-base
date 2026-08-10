@@ -52,7 +52,11 @@ class SmbLibraryScanner {
           supportedExtensions.contains(p.extension(entry.name).toLowerCase())) {
         tracks.add(
           LibraryTrack(
-            sourcePath: 'smb://${source.host}/${source.share}/$remotePath',
+            sourcePath: Uri(
+              scheme: 'smb',
+              host: source.host,
+              pathSegments: [source.share, ...remotePath.split('/')],
+            ).toString(),
             title: p.basenameWithoutExtension(entry.name),
             lastSeenAt: entry.stat.modified,
           ),

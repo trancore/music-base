@@ -23,7 +23,7 @@ class SmbRemoteLocation {
     final uri = Uri.tryParse(sourcePath);
     if (uri == null || uri.scheme != 'smb' || uri.host.isEmpty) return null;
     final segments = uri.pathSegments;
-    if (segments.length < 2) return null;
+    if (segments.length < 3) return null;
     return SmbRemoteLocation(
       host: uri.host,
       share: segments.first,
@@ -119,8 +119,8 @@ class SmbStreamAudioSource extends StreamAudioSource {
   @override
   Future<StreamAudioResponse> request([int? start, int? end]) async {
     if (_closed) throw StateError('SMB audio source is closed.');
-    final offset = start ?? 0;
-    final requestedEnd = end ?? length;
+    final offset = (start ?? 0).clamp(0, length);
+    final requestedEnd = (end ?? length).clamp(offset, length);
     final bytes = await pool.readFileRange(
       path,
       offset: offset,
