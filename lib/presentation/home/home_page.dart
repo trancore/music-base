@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/library_providers.dart';
 import '../../app/playback_providers.dart';
+import '../../app/smb_providers.dart';
 import '../../domain/library/library_track.dart';
 import '../../domain/playback/playback_service.dart';
 
@@ -16,6 +17,7 @@ class HomePage extends ConsumerWidget {
     final sourcePath = ref.read(libraryProvider.notifier).sourcePath;
     final playback = ref.watch(playbackServiceProvider);
     final snapshot = playback.snapshot;
+    final smbSource = ref.watch(smbSourceProvider).valueOrNull;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Music Base')),
@@ -52,6 +54,23 @@ class HomePage extends ConsumerWidget {
               ),
             ),
           ),
+          if (smbSource != null) ...[
+            const SizedBox(height: 12),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.cloud_outlined),
+                title: const Text('SMB library'),
+                subtitle: Text('${smbSource.host}/${smbSource.share}'),
+                trailing: FilledButton.icon(
+                  onPressed: library.isLoading
+                      ? null
+                      : () => ref.read(libraryProvider.notifier).scanSmb(),
+                  icon: const Icon(Icons.sync),
+                  label: const Text('Scan'),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 24),
           if (library.isLoading)
             const Center(child: CircularProgressIndicator())
@@ -81,17 +100,20 @@ class HomePage extends ConsumerWidget {
                 isCurrent:
                     snapshot.currentTrack?.sourcePath == track.sourcePath,
                 isPlaying: snapshot.isPlaying,
-                onPlay: () async {
-                  if (snapshot.currentTrack?.sourcePath == track.sourcePath &&
-                      snapshot.isPlaying) {
-                    await playback.pause();
-                  } else if (snapshot.currentTrack?.sourcePath ==
-                      track.sourcePath) {
-                    await playback.resume();
-                  } else {
-                    await playback.playTrack(track);
-                  }
-                },
+                onPlay: track.isRemote
+                    ? null
+                    : () async {
+                        if (snapshot.currentTrack?.sourcePath ==
+                                track.sourcePath &&
+                            snapshot.isPlaying) {
+                          await playback.pause();
+                        } else if (snapshot.currentTrack?.sourcePath ==
+                            track.sourcePath) {
+                          await playback.resume();
+                        } else {
+                          await playback.playTrack(track);
+                        }
+                      },
               ),
             ),
           if (snapshot.currentTrack != null) ...[
@@ -115,7 +137,7 @@ class _TrackTile extends StatelessWidget {
   final LibraryTrack track;
   final bool isCurrent;
   final bool isPlaying;
-  final VoidCallback onPlay;
+  final VoidCallback? onPlay;
 
   @override
   Widget build(BuildContext context) {
@@ -124,9 +146,19 @@ class _TrackTile extends StatelessWidget {
       title: Text(track.title ?? track.sourcePath),
       subtitle: Text(track.sourcePath),
       trailing: IconButton(
-        tooltip: isCurrent && isPlaying ? 'Pause' : 'Play',
+        tooltip: track.isRemote
+            ? 'SMB direct playback is not available yet'
+            : isCurrent && isPlaying
+            ? 'Pause'
+            : 'Play',
         onPressed: onPlay,
-        icon: Icon(isCurrent && isPlaying ? Icons.pause : Icons.play_arrow),
+        icon: Icon(
+          track.isRemote
+              ? Icons.cloud_off
+              : isCurrent && isPlaying
+              ? Icons.pause
+              : Icons.play_arrow,
+        ),
       ),
     );
   }
