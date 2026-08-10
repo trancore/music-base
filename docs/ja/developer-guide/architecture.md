@@ -35,3 +35,5 @@ CD取り込みの出力計画は`CdImportPlanner`で作成します。MusicBrain
 WindowsのCDドライブ検出は`CdDriveService`の境界で扱います。Windows実装はPowerShellから`Win32_CDROMDrive`のドライブ文字、デバイス名、メディア挿入状態を取得します。Androidや非Windows環境では利用可能性をエラーとして返します。
 
 CDトラック一覧は`CdTrackService`で扱い、Windows実装はCD AudioのMCI APIからトラック数と長さを取得します。MCI呼び出しとPowerShell実行はWindowsデータ層に閉じ込め、共有層は`CdTrack`モデルだけを受け取ります。
+
+音声データの取り込みは`CdRippingService`で扱います。Windows実装は外部`ffmpeg.exe`へCDドライブ、トラック番号、FLAC／MP3 codecを渡し、`-n`と事前存在確認で上書きを防止します。ffmpeg未導入や実行失敗は通常の復旧可能なエラーとして扱います。

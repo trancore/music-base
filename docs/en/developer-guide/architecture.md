@@ -35,3 +35,5 @@ CD output plans are created by `CdImportPlanner`. It validates the MusicBrainz t
 Windows CD drive detection is isolated behind `CdDriveService`. The Windows implementation queries drive letters, device names, and media-loaded state from PowerShell's `Win32_CDROMDrive`. Android and non-Windows environments report the capability as unavailable.
 
 CD track listing is isolated behind `CdTrackService`; the Windows implementation obtains track count and lengths from the CD Audio MCI API. MCI and PowerShell execution remain in the Windows data layer, while shared code receives only `CdTrack` models.
+
+Audio extraction is isolated behind `CdRippingService`. The Windows implementation invokes external `ffmpeg.exe` with the CD drive, track number, and FLAC/MP3 codec, while `-n` and a preflight existence check prevent overwrites. Missing ffmpeg and process failures are recoverable errors.
