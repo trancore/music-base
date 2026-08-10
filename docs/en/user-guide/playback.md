@@ -1,5 +1,5 @@
 # Playback and display
 
-Playback includes play, pause, seeking, volume, previous and next track, shuffle, repeat, queue, and playlists.
+Select a local FLAC or MP3 file from the library to play it. The current implementation supports play, pause, stop, and seeking.
 
-During playback, the app can show a theme-aware visualizer and a spectrum analyzer grouped by frequency bands.
+Playback errors are shown in the UI so another track can be selected without closing the app. Volume, queue, playlists, shuffle, repeat, the visualizer, and the spectrum analyzer will be added in later features.
