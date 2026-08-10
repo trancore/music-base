@@ -31,3 +31,5 @@ Disconnected shares, authentication failures, and missing files are recoverable 
 CD detection and ripping are Windows-specific. Android provides local directory or SMB library access and playback. Windows-only CD processing must not be mixed directly into shared domain code.
 
 CD output plans are created by `CdImportPlanner`. It validates the MusicBrainz track count against the CD tracks, derives FLAC/MP3 filenames and tag candidates, and refuses existing target paths before any file is written. Drive reading and encoding are invoked through a Windows-specific service.
+
+Windows CD drive detection is isolated behind `CdDriveService`. The Windows implementation queries drive letters, device names, and media-loaded state from PowerShell's `Win32_CDROMDrive`. Android and non-Windows environments report the capability as unavailable.

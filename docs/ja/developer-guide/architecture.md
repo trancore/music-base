@@ -31,3 +31,5 @@ SMB接続は`SmbService`の抽象インターフェースを通じて利用し�
 CD検出とリッピングはWindows固有機能です。AndroidではローカルディレクトリまたはSMB共有の参照と再生を提供し、Windows固有のCD処理を共有ドメインコードへ直接混在させません。
 
 CD取り込みの出力計画は`CdImportPlanner`で作成します。MusicBrainzの曲順とCDトラック数を検証し、FLAC／MP3の拡張子、タグ候補、出力パスを組み立てます。既存パスの上書きは計画段階で拒否し、実ドライブの読み取りとエンコードはWindows固有のサービスから呼び出します。
+
+WindowsのCDドライブ検出は`CdDriveService`の境界で扱います。Windows実装はPowerShellから`Win32_CDROMDrive`のドライブ文字、デバイス名、メディア挿入状態を取得します。Androidや非Windows環境では利用可能性をエラーとして返します。
