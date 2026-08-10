@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 
 import '../../app/cd_providers.dart';
 import '../../domain/cd/cd_drive_service.dart';
@@ -17,10 +19,18 @@ class CdDrivePage extends ConsumerStatefulWidget {
 class _CdDrivePageState extends ConsumerState<CdDrivePage> {
   Timer? _pollTimer;
   bool _loading = false;
+  bool _ripping = false;
+  bool _cancelRequested = false;
   String? _error;
   String? _statusMessage;
+  String? _outputDirectory;
+  CdImportFormat _format = CdImportFormat.flac;
+  CdDrive? _selectedDrive;
+  int _completedTracks = 0;
+  int _totalTracks = 0;
   List<CdDrive> _drives = const [];
   final Map<String, Future<List<CdTrack>>> _trackRequests = {};
+  final Map<String, Set<int>> _selectedTracks = {};
 
   @override
   void initState() {
@@ -40,13 +50,18 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
 
   @override
   Widget build(BuildContext context) {
+    final selectedDrive = _selectedDrive;
+    final selectedTrackNumbers = selectedDrive == null
+        ? const <int>{}
+        : (_selectedTracks[selectedDrive.deviceId] ?? const <int>{});
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('CD import'),
         actions: [
           IconButton(
             tooltip: 'Refresh drives',
-            onPressed: _loading ? null : _refresh,
+            onPressed: _loading || _ripping ? null : _refresh,
             icon: const Icon(Icons.refresh),
           ),
         ],
@@ -57,7 +72,7 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
           Text('CD drives', style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: 8),
           const Text(
-            'Insert a CD and refresh to check whether Windows detects it.',
+            'Select a drive and tracks, then choose an output directory to rip them.',
           ),
           const SizedBox(height: 24),
           if (_loading) const LinearProgressIndicator(),
@@ -66,7 +81,7 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
               color: Theme.of(context).colorScheme.errorContainer,
               child: ListTile(
                 leading: const Icon(Icons.error_outline),
-                title: const Text('CD drive detection failed'),
+                title: const Text('CD import failed'),
                 subtitle: Text(message),
               ),
             ),
@@ -86,21 +101,192 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
               ),
             )
           else
-            ..._drives.map((drive) {
-              final tracksFuture = drive.mediaLoaded
-                  ? (_trackRequests[drive.deviceId] ??= ref
-                        .read(cdTrackServiceProvider)
-                        .readTracks(drive))
-                  : null;
-              return _CdDriveCard(drive, tracksFuture: tracksFuture);
-            }),
+            ..._drives.map(_buildDriveCard),
+          if (selectedDrive != null && selectedTrackNumbers.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            _buildImportControls(selectedDrive, selectedTrackNumbers),
+          ],
         ],
       ),
     );
   }
 
+  Widget _buildDriveCard(CdDrive drive) {
+    final tracksFuture = drive.mediaLoaded
+        ? (_trackRequests[drive.deviceId] ??= ref
+              .read(cdTrackServiceProvider)
+              .readTracks(drive))
+        : null;
+    final selected = _selectedDrive?.deviceId == drive.deviceId;
+    return _CdDriveCard(
+      drive,
+      selected: selected,
+      tracksFuture: tracksFuture,
+      selectedTracks: _selectedTracks[drive.deviceId] ?? const <int>{},
+      onSelectDrive: () => _selectDrive(drive),
+      onToggleTrack: (track, checked) => _toggleTrack(drive, track, checked),
+    );
+  }
+
+  Widget _buildImportControls(CdDrive drive, Set<int> selectedTracks) {
+    final progress = _totalTracks == 0 ? 0.0 : _completedTracks / _totalTracks;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Rip from ${drive.driveLetter}',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _outputDirectory ?? 'No output directory selected',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _ripping ? null : _chooseOutputDirectory,
+                  icon: const Icon(Icons.folder_open),
+                  label: const Text('Choose output'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<CdImportFormat>(
+              initialValue: _format,
+              decoration: const InputDecoration(labelText: 'Format'),
+              items: const [
+                DropdownMenuItem(
+                  value: CdImportFormat.flac,
+                  child: Text('FLAC'),
+                ),
+                DropdownMenuItem(value: CdImportFormat.mp3, child: Text('MP3')),
+              ],
+              onChanged: _ripping
+                  ? null
+                  : (value) {
+                      if (value != null) setState(() => _format = value);
+                    },
+            ),
+            if (_ripping) ...[
+              const SizedBox(height: 16),
+              LinearProgressIndicator(value: progress),
+              const SizedBox(height: 8),
+              Text('Ripping $_completedTracks of $_totalTracks tracks...'),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => setState(() => _cancelRequested = true),
+                  child: const Text('Cancel'),
+                ),
+              ),
+            ] else ...[
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: _outputDirectory == null
+                    ? null
+                    : () => _ripSelectedTracks(drive, selectedTracks),
+                icon: const Icon(Icons.album),
+                label: Text('Start ripping (${selectedTracks.length})'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _selectDrive(CdDrive drive) {
+    if (!drive.mediaLoaded) return;
+    setState(() {
+      _selectedDrive = drive;
+      _selectedTracks.putIfAbsent(drive.deviceId, () => <int>{});
+      _error = null;
+      _statusMessage = null;
+    });
+  }
+
+  void _toggleTrack(CdDrive drive, CdTrack track, bool checked) {
+    setState(() {
+      final tracks = _selectedTracks.putIfAbsent(drive.deviceId, () => <int>{});
+      if (checked) {
+        tracks.add(track.number);
+      } else {
+        tracks.remove(track.number);
+      }
+    });
+  }
+
+  Future<void> _chooseOutputDirectory() async {
+    final path = await getDirectoryPath();
+    if (!mounted || path == null || path.trim().isEmpty) return;
+    setState(() {
+      _outputDirectory = path;
+      _error = null;
+    });
+  }
+
+  Future<void> _ripSelectedTracks(
+    CdDrive drive,
+    Set<int> selectedTrackNumbers,
+  ) async {
+    final outputDirectory = _outputDirectory?.trim();
+    if (outputDirectory == null || outputDirectory.isEmpty) return;
+    final tracks = (_trackRequests[drive.deviceId] == null)
+        ? const <CdTrack>[]
+        : await _trackRequests[drive.deviceId]!;
+    final selected = tracks
+        .where((track) => selectedTrackNumbers.contains(track.number))
+        .toList(growable: false);
+    if (selected.isEmpty) return;
+
+    setState(() {
+      _ripping = true;
+      _cancelRequested = false;
+      _completedTracks = 0;
+      _totalTracks = selected.length;
+      _error = null;
+      _statusMessage = null;
+    });
+    try {
+      for (final track in selected) {
+        if (_cancelRequested) break;
+        final fileName =
+            'Track ${track.number.toString().padLeft(2, '0')}${_format.extension}';
+        await ref
+            .read(cdRippingServiceProvider)
+            .ripTrack(
+              drive: drive,
+              track: track,
+              outputPath: p.join(outputDirectory, fileName),
+              format: _format,
+            );
+        if (!mounted) return;
+        setState(() => _completedTracks++);
+      }
+      if (!mounted) return;
+      setState(() {
+        _ripping = false;
+        _statusMessage = _cancelRequested
+            ? 'Ripping cancelled after $_completedTracks tracks.'
+            : 'Ripping completed: $_completedTracks tracks.';
+      });
+    } on Exception catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _ripping = false;
+        _error = error.toString();
+      });
+    }
+  }
+
   Future<void> _refresh({bool silent = false}) async {
-    if (_loading) return;
+    if (_loading || _ripping) return;
     setState(() {
       _loading = !silent;
       if (!silent) {
@@ -127,6 +313,11 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
       );
       for (final drive in drives.where((drive) => !drive.mediaLoaded)) {
         _trackRequests.remove(drive.deviceId);
+        _selectedTracks.remove(drive.deviceId);
+      }
+      if (_selectedDrive != null &&
+          drives.every((drive) => drive.deviceId != _selectedDrive!.deviceId)) {
+        _selectedDrive = null;
       }
       setState(() {
         _loading = false;
@@ -148,10 +339,21 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
 }
 
 class _CdDriveCard extends StatelessWidget {
-  const _CdDriveCard(this.drive, {required this.tracksFuture});
+  const _CdDriveCard(
+    this.drive, {
+    required this.selected,
+    required this.tracksFuture,
+    required this.selectedTracks,
+    required this.onSelectDrive,
+    required this.onToggleTrack,
+  });
 
   final CdDrive drive;
+  final bool selected;
   final Future<List<CdTrack>>? tracksFuture;
+  final Set<int> selectedTracks;
+  final VoidCallback onSelectDrive;
+  final void Function(CdTrack track, bool checked) onToggleTrack;
 
   @override
   Widget build(BuildContext context) {
@@ -160,6 +362,12 @@ class _CdDriveCard extends StatelessWidget {
         leading: Icon(drive.mediaLoaded ? Icons.album : Icons.album_outlined),
         title: Text('${drive.driveLetter} ${drive.name}'),
         subtitle: Text(drive.mediaLoaded ? 'Media loaded' : 'No media loaded'),
+        trailing: drive.mediaLoaded
+            ? OutlinedButton(
+                onPressed: onSelectDrive,
+                child: Text(selected ? 'Selected' : 'Select'),
+              )
+            : null,
         children: [
           if (tracksFuture != null)
             FutureBuilder<List<CdTrack>>(
@@ -183,9 +391,12 @@ class _CdDriveCard extends StatelessWidget {
                 return Column(
                   children: [
                     for (final track in snapshot.data!)
-                      ListTile(
-                        dense: true,
-                        leading: Text('${track.number}'),
+                      CheckboxListTile(
+                        value: selectedTracks.contains(track.number),
+                        onChanged: (checked) {
+                          if (checked != null) onToggleTrack(track, checked);
+                        },
+                        secondary: Text('${track.number}'),
                         title: Text(
                           track.duration == null
                               ? 'Track ${track.number}'
