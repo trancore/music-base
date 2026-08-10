@@ -1,0 +1,22 @@
+# Flutter / Dart generated files
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+
+# Flutter build artifacts
+build/
+
+# Test and coverage output
+coverage/
+
+# VitePress generated files
+docs/.vitepress/cache/
+docs/.vitepress/dist/
+
+# Node.js dependencies
+node_modules/
+.pnpm-store/
+
+# codex
+.serena/
