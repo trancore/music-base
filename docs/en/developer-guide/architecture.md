@@ -20,6 +20,8 @@ The local directory scanner walks subdirectories recursively and currently treat
 
 Audio playback is accessed through the `PlaybackService` abstraction. The current implementation uses just_audio and its Windows implementation to play files by path. The UI observes service state instead of depending directly on the playback engine.
 
+SMB connectivity is accessed through the `SmbService` abstraction. Host, share, subfolder, and username are stored as settings, while the password is stored with `flutter_secure_storage`. SMB library scanning is kept as a separate service operation from connection testing.
+
 Disconnected shares, authentication failures, and missing files are recoverable errors and must not crash the UI or the whole service layer.
 
 CD detection and ripping are Windows-specific. Android provides local directory or SMB library access and playback. Windows-only CD processing must not be mixed directly into shared domain code.

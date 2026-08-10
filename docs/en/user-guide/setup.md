@@ -9,12 +9,12 @@ Local directory example: `D:\Music`
 SMB share example: `\\<server>\<share>\[subfolder]`
 ```
 
-You can change the location in Settings. Select a local directory, or enter the SMB host, share, and optional subfolder.
+You can change the location in Settings. Select a local directory, or enter the SMB host, share, and optional subfolder. For an SMB source, enter the username and password and choose **Test connection and save**.
 
 ## Credentials
 
-If the SMB share requires authentication, enter the SMB username and password. Test the connection before scanning the library.
+If the SMB share requires authentication, enter the SMB username and password. The password is stored in the platform secure credential store and is never written to logs or source code. If the connection test fails, check the host, share, credentials, and network connection.
 
 ## Android
 
-The Android app can access a local directory or an SMB share containing the music. CD ripping is a Windows-only feature.
+The Android app is planned to use the same SMB settings model. The current SMB feature provides connection testing and settings storage; SMB library scanning will be added later. CD ripping is a Windows-only feature.
