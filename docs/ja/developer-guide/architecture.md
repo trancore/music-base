@@ -33,3 +33,5 @@ CD検出とリッピングはWindows固有機能です。Androidではローカ�
 CD取り込みの出力計画は`CdImportPlanner`で作成します。MusicBrainzの曲順とCDトラック数を検証し、FLAC／MP3の拡張子、タグ候補、出力パスを組み立てます。既存パスの上書きは計画段階で拒否し、実ドライブの読み取りとエンコードはWindows固有のサービスから呼び出します。
 
 WindowsのCDドライブ検出は`CdDriveService`の境界で扱います。Windows実装はPowerShellから`Win32_CDROMDrive`のドライブ文字、デバイス名、メディア挿入状態を取得します。Androidや非Windows環境では利用可能性をエラーとして返します。
+
+CDトラック一覧は`CdTrackService`で扱い、Windows実装はCD AudioのMCI APIからトラック数と長さを取得します。MCI呼び出しとPowerShell実行はWindowsデータ層に閉じ込め、共有層は`CdTrack`モデルだけを受け取ります。
