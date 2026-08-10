@@ -72,6 +72,14 @@ class HomePage extends ConsumerWidget {
             ),
           ],
           const SizedBox(height: 24),
+          if (library.valueOrNull?.isNotEmpty ?? false) ...[
+            FilledButton.icon(
+              onPressed: () => playback.playQueue(library.valueOrNull!),
+              icon: const Icon(Icons.playlist_play),
+              label: const Text('Play library'),
+            ),
+            const SizedBox(height: 12),
+          ],
           if (library.isLoading)
             const Center(child: CircularProgressIndicator())
           else if (library.hasError)
@@ -192,6 +200,11 @@ class _PlaybackControls extends StatelessWidget {
             ),
             Row(
               children: [
+                IconButton(
+                  tooltip: 'Previous',
+                  onPressed: playback.skipPrevious,
+                  icon: const Icon(Icons.skip_previous),
+                ),
                 Text(_formatDuration(position)),
                 const Spacer(),
                 IconButton(
@@ -207,6 +220,44 @@ class _PlaybackControls extends StatelessWidget {
                   tooltip: 'Stop',
                   onPressed: playback.stop,
                   icon: const Icon(Icons.stop),
+                ),
+                IconButton(
+                  tooltip: 'Next',
+                  onPressed: playback.skipNext,
+                  icon: const Icon(Icons.skip_next),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                IconButton(
+                  tooltip: 'Shuffle',
+                  onPressed: playback.toggleShuffle,
+                  color: snapshot.shuffleEnabled
+                      ? Theme.of(context).colorScheme.primary
+                      : null,
+                  icon: const Icon(Icons.shuffle),
+                ),
+                IconButton(
+                  tooltip: 'Repeat',
+                  onPressed: playback.toggleRepeat,
+                  color: snapshot.repeatEnabled
+                      ? Theme.of(context).colorScheme.primary
+                      : null,
+                  icon: const Icon(Icons.repeat),
+                ),
+                IconButton(
+                  tooltip: snapshot.isMuted ? 'Unmute' : 'Mute',
+                  onPressed: playback.toggleMute,
+                  icon: Icon(
+                    snapshot.isMuted ? Icons.volume_off : Icons.volume_up,
+                  ),
+                ),
+                Expanded(
+                  child: Slider(
+                    value: snapshot.volume,
+                    onChanged: snapshot.isMuted ? null : playback.setVolume,
+                  ),
                 ),
               ],
             ),
