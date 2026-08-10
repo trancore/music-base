@@ -41,6 +41,8 @@ dependencies:
   drift_flutter: ^0.3.1
   file_selector: ^1.1.0
   path: ^1.9.1
+  just_audio: ^0.10.6
+  just_audio_windows: ^0.2.3
 
 dev_dependencies:
   flutter_test:
