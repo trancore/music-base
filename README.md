@@ -127,11 +127,14 @@ flutter build apk
 │   ├── ja/                   # 日本語ドキュメント
 │   └── en/                   # 英語ドキュメント
 ├── .github/workflows/        # GitHub Actions
+├── lib/                      # Flutterアプリ本体
+├── test/                     # Flutterテスト
+├── windows/                  # Windowsランナー
 ├── mise.toml                 # Node.jsバージョン
 └── package.json              # ドキュメント用Node.js設定
 ```
 
-Flutterアプリのディレクトリ構成は、実装開始時にアーキテクチャ方針に合わせて追加します。
+Flutterアプリは`lib/app/`、`lib/domain/`、`lib/data/`、`lib/presentation/`、`lib/platform/`に責務を分けます。詳細は[開発者向けアーキテクチャ](./docs/ja/developer-guide/architecture.md)を参照してください。
 
 ## 開発ルール
 
