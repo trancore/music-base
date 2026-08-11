@@ -21,7 +21,8 @@ void main() {
       final tracks = await const LocalDirectoryLibraryScanner().scan(root.path);
 
       expect(tracks, hasLength(2));
-      expect(tracks.map((track) => track.title), ['01 - Intro', '02 - Song']);
+      expect(tracks.map((track) => track.title), ['Intro', 'Song']);
+      expect(tracks.map((track) => track.album), ['album', 'album']);
     },
   );
 

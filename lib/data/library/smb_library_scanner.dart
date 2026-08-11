@@ -2,6 +2,7 @@ import 'package:dart_smb2/dart_smb2.dart';
 import 'package:path/path.dart' as p;
 
 import '../../domain/library/library_errors.dart';
+import '../../domain/library/library_metadata.dart';
 import '../../domain/library/library_track.dart';
 import '../../domain/library/smb_source.dart';
 
@@ -50,14 +51,18 @@ class SmbLibraryScanner {
         await _scanDirectory(pool, remotePath, source, tracks);
       } else if (entry.isFile &&
           supportedExtensions.contains(p.extension(entry.name).toLowerCase())) {
+        final sourcePath = Uri(
+          scheme: 'smb',
+          host: source.host,
+          pathSegments: [source.share, ...remotePath.split('/')],
+        ).toString();
+        final metadata = inferLibraryMetadata(sourcePath);
         tracks.add(
           LibraryTrack(
-            sourcePath: Uri(
-              scheme: 'smb',
-              host: source.host,
-              pathSegments: [source.share, ...remotePath.split('/')],
-            ).toString(),
-            title: p.basenameWithoutExtension(entry.name),
+            sourcePath: sourcePath,
+            title: metadata.title,
+            artist: metadata.artist,
+            album: metadata.album,
             lastSeenAt: entry.stat.modified,
           ),
         );

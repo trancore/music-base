@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../../domain/library/library_errors.dart';
+import '../../domain/library/library_metadata.dart';
 import '../../domain/library/library_scanner.dart';
 import '../../domain/library/library_track.dart';
 
@@ -31,10 +32,16 @@ class LocalDirectoryLibraryScanner implements LibraryScanner {
           continue;
         }
 
+        final metadata = inferLibraryMetadata(
+          entity.path,
+          libraryRoot: rootPath,
+        );
         tracks.add(
           LibraryTrack(
             sourcePath: entity.path,
-            title: p.basenameWithoutExtension(entity.path),
+            title: metadata.title,
+            artist: metadata.artist,
+            album: metadata.album,
             lastSeenAt: DateTime.now(),
           ),
         );

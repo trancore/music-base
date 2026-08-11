@@ -1,6 +1,6 @@
 # Music library
 
-Select a local music directory from Settings and the app scans it recursively. FLAC and MP3 files are currently included, and the file name is used as the track title until metadata parsing is added.
+Select a local music directory from Settings and the app scans it recursively. FLAC and MP3 files are currently included. For common `Artist/Album/01 - Title.flac` layouts, the scanner infers the artist, album, and title from the path; other files use the filename as the title.
 
 The paths and basic track information are cached in the local database. The selected library location remains the source of truth; audio files are never copied into the database.
 
