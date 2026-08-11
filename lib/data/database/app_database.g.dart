@@ -61,6 +61,17 @@ class $LibraryTracksTable extends LibraryTracks
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _artworkMeta = const VerificationMeta(
+    'artwork',
+  );
+  @override
+  late final GeneratedColumn<Uint8List> artwork = GeneratedColumn<Uint8List>(
+    'artwork',
+    aliasedName,
+    true,
+    type: DriftSqlType.blob,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _lastSeenAtMeta = const VerificationMeta(
     'lastSeenAt',
   );
@@ -79,6 +90,7 @@ class $LibraryTracksTable extends LibraryTracks
     title,
     artist,
     album,
+    artwork,
     lastSeenAt,
   ];
   @override
@@ -122,6 +134,12 @@ class $LibraryTracksTable extends LibraryTracks
         album.isAcceptableOrUnknown(data['album']!, _albumMeta),
       );
     }
+    if (data.containsKey('artwork')) {
+      context.handle(
+        _artworkMeta,
+        artwork.isAcceptableOrUnknown(data['artwork']!, _artworkMeta),
+      );
+    }
     if (data.containsKey('last_seen_at')) {
       context.handle(
         _lastSeenAtMeta,
@@ -160,6 +178,10 @@ class $LibraryTracksTable extends LibraryTracks
         DriftSqlType.string,
         data['${effectivePrefix}album'],
       ),
+      artwork: attachedDatabase.typeMapping.read(
+        DriftSqlType.blob,
+        data['${effectivePrefix}artwork'],
+      ),
       lastSeenAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_seen_at'],
@@ -179,6 +201,7 @@ class LibraryTrack extends DataClass implements Insertable<LibraryTrack> {
   final String? title;
   final String? artist;
   final String? album;
+  final Uint8List? artwork;
   final DateTime? lastSeenAt;
   const LibraryTrack({
     required this.id,
@@ -186,6 +209,7 @@ class LibraryTrack extends DataClass implements Insertable<LibraryTrack> {
     this.title,
     this.artist,
     this.album,
+    this.artwork,
     this.lastSeenAt,
   });
   @override
@@ -201,6 +225,9 @@ class LibraryTrack extends DataClass implements Insertable<LibraryTrack> {
     }
     if (!nullToAbsent || album != null) {
       map['album'] = Variable<String>(album);
+    }
+    if (!nullToAbsent || artwork != null) {
+      map['artwork'] = Variable<Uint8List>(artwork);
     }
     if (!nullToAbsent || lastSeenAt != null) {
       map['last_seen_at'] = Variable<DateTime>(lastSeenAt);
@@ -221,6 +248,9 @@ class LibraryTrack extends DataClass implements Insertable<LibraryTrack> {
       album: album == null && nullToAbsent
           ? const Value.absent()
           : Value(album),
+      artwork: artwork == null && nullToAbsent
+          ? const Value.absent()
+          : Value(artwork),
       lastSeenAt: lastSeenAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastSeenAt),
@@ -238,6 +268,7 @@ class LibraryTrack extends DataClass implements Insertable<LibraryTrack> {
       title: serializer.fromJson<String?>(json['title']),
       artist: serializer.fromJson<String?>(json['artist']),
       album: serializer.fromJson<String?>(json['album']),
+      artwork: serializer.fromJson<Uint8List?>(json['artwork']),
       lastSeenAt: serializer.fromJson<DateTime?>(json['lastSeenAt']),
     );
   }
@@ -250,6 +281,7 @@ class LibraryTrack extends DataClass implements Insertable<LibraryTrack> {
       'title': serializer.toJson<String?>(title),
       'artist': serializer.toJson<String?>(artist),
       'album': serializer.toJson<String?>(album),
+      'artwork': serializer.toJson<Uint8List?>(artwork),
       'lastSeenAt': serializer.toJson<DateTime?>(lastSeenAt),
     };
   }
@@ -260,6 +292,7 @@ class LibraryTrack extends DataClass implements Insertable<LibraryTrack> {
     Value<String?> title = const Value.absent(),
     Value<String?> artist = const Value.absent(),
     Value<String?> album = const Value.absent(),
+    Value<Uint8List?> artwork = const Value.absent(),
     Value<DateTime?> lastSeenAt = const Value.absent(),
   }) => LibraryTrack(
     id: id ?? this.id,
@@ -267,6 +300,7 @@ class LibraryTrack extends DataClass implements Insertable<LibraryTrack> {
     title: title.present ? title.value : this.title,
     artist: artist.present ? artist.value : this.artist,
     album: album.present ? album.value : this.album,
+    artwork: artwork.present ? artwork.value : this.artwork,
     lastSeenAt: lastSeenAt.present ? lastSeenAt.value : this.lastSeenAt,
   );
   LibraryTrack copyWithCompanion(LibraryTracksCompanion data) {
@@ -278,6 +312,7 @@ class LibraryTrack extends DataClass implements Insertable<LibraryTrack> {
       title: data.title.present ? data.title.value : this.title,
       artist: data.artist.present ? data.artist.value : this.artist,
       album: data.album.present ? data.album.value : this.album,
+      artwork: data.artwork.present ? data.artwork.value : this.artwork,
       lastSeenAt: data.lastSeenAt.present
           ? data.lastSeenAt.value
           : this.lastSeenAt,
@@ -292,14 +327,22 @@ class LibraryTrack extends DataClass implements Insertable<LibraryTrack> {
           ..write('title: $title, ')
           ..write('artist: $artist, ')
           ..write('album: $album, ')
+          ..write('artwork: $artwork, ')
           ..write('lastSeenAt: $lastSeenAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, sourcePath, title, artist, album, lastSeenAt);
+  int get hashCode => Object.hash(
+    id,
+    sourcePath,
+    title,
+    artist,
+    album,
+    $driftBlobEquality.hash(artwork),
+    lastSeenAt,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -309,6 +352,7 @@ class LibraryTrack extends DataClass implements Insertable<LibraryTrack> {
           other.title == this.title &&
           other.artist == this.artist &&
           other.album == this.album &&
+          $driftBlobEquality.equals(other.artwork, this.artwork) &&
           other.lastSeenAt == this.lastSeenAt);
 }
 
@@ -318,6 +362,7 @@ class LibraryTracksCompanion extends UpdateCompanion<LibraryTrack> {
   final Value<String?> title;
   final Value<String?> artist;
   final Value<String?> album;
+  final Value<Uint8List?> artwork;
   final Value<DateTime?> lastSeenAt;
   const LibraryTracksCompanion({
     this.id = const Value.absent(),
@@ -325,6 +370,7 @@ class LibraryTracksCompanion extends UpdateCompanion<LibraryTrack> {
     this.title = const Value.absent(),
     this.artist = const Value.absent(),
     this.album = const Value.absent(),
+    this.artwork = const Value.absent(),
     this.lastSeenAt = const Value.absent(),
   });
   LibraryTracksCompanion.insert({
@@ -333,6 +379,7 @@ class LibraryTracksCompanion extends UpdateCompanion<LibraryTrack> {
     this.title = const Value.absent(),
     this.artist = const Value.absent(),
     this.album = const Value.absent(),
+    this.artwork = const Value.absent(),
     this.lastSeenAt = const Value.absent(),
   }) : sourcePath = Value(sourcePath);
   static Insertable<LibraryTrack> custom({
@@ -341,6 +388,7 @@ class LibraryTracksCompanion extends UpdateCompanion<LibraryTrack> {
     Expression<String>? title,
     Expression<String>? artist,
     Expression<String>? album,
+    Expression<Uint8List>? artwork,
     Expression<DateTime>? lastSeenAt,
   }) {
     return RawValuesInsertable({
@@ -349,6 +397,7 @@ class LibraryTracksCompanion extends UpdateCompanion<LibraryTrack> {
       if (title != null) 'title': title,
       if (artist != null) 'artist': artist,
       if (album != null) 'album': album,
+      if (artwork != null) 'artwork': artwork,
       if (lastSeenAt != null) 'last_seen_at': lastSeenAt,
     });
   }
@@ -359,6 +408,7 @@ class LibraryTracksCompanion extends UpdateCompanion<LibraryTrack> {
     Value<String?>? title,
     Value<String?>? artist,
     Value<String?>? album,
+    Value<Uint8List?>? artwork,
     Value<DateTime?>? lastSeenAt,
   }) {
     return LibraryTracksCompanion(
@@ -367,6 +417,7 @@ class LibraryTracksCompanion extends UpdateCompanion<LibraryTrack> {
       title: title ?? this.title,
       artist: artist ?? this.artist,
       album: album ?? this.album,
+      artwork: artwork ?? this.artwork,
       lastSeenAt: lastSeenAt ?? this.lastSeenAt,
     );
   }
@@ -389,6 +440,9 @@ class LibraryTracksCompanion extends UpdateCompanion<LibraryTrack> {
     if (album.present) {
       map['album'] = Variable<String>(album.value);
     }
+    if (artwork.present) {
+      map['artwork'] = Variable<Uint8List>(artwork.value);
+    }
     if (lastSeenAt.present) {
       map['last_seen_at'] = Variable<DateTime>(lastSeenAt.value);
     }
@@ -403,6 +457,7 @@ class LibraryTracksCompanion extends UpdateCompanion<LibraryTrack> {
           ..write('title: $title, ')
           ..write('artist: $artist, ')
           ..write('album: $album, ')
+          ..write('artwork: $artwork, ')
           ..write('lastSeenAt: $lastSeenAt')
           ..write(')'))
         .toString();
@@ -427,6 +482,7 @@ typedef $$LibraryTracksTableCreateCompanionBuilder =
       Value<String?> title,
       Value<String?> artist,
       Value<String?> album,
+      Value<Uint8List?> artwork,
       Value<DateTime?> lastSeenAt,
     });
 typedef $$LibraryTracksTableUpdateCompanionBuilder =
@@ -436,6 +492,7 @@ typedef $$LibraryTracksTableUpdateCompanionBuilder =
       Value<String?> title,
       Value<String?> artist,
       Value<String?> album,
+      Value<Uint8List?> artwork,
       Value<DateTime?> lastSeenAt,
     });
 
@@ -470,6 +527,11 @@ class $$LibraryTracksTableFilterComposer
 
   ColumnFilters<String> get album => $composableBuilder(
     column: $table.album,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<Uint8List> get artwork => $composableBuilder(
+    column: $table.artwork,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -513,6 +575,11 @@ class $$LibraryTracksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<Uint8List> get artwork => $composableBuilder(
+    column: $table.artwork,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get lastSeenAt => $composableBuilder(
     column: $table.lastSeenAt,
     builder: (column) => ColumnOrderings(column),
@@ -544,6 +611,9 @@ class $$LibraryTracksTableAnnotationComposer
 
   GeneratedColumn<String> get album =>
       $composableBuilder(column: $table.album, builder: (column) => column);
+
+  GeneratedColumn<Uint8List> get artwork =>
+      $composableBuilder(column: $table.artwork, builder: (column) => column);
 
   GeneratedColumn<DateTime> get lastSeenAt => $composableBuilder(
     column: $table.lastSeenAt,
@@ -587,6 +657,7 @@ class $$LibraryTracksTableTableManager
                 Value<String?> title = const Value.absent(),
                 Value<String?> artist = const Value.absent(),
                 Value<String?> album = const Value.absent(),
+                Value<Uint8List?> artwork = const Value.absent(),
                 Value<DateTime?> lastSeenAt = const Value.absent(),
               }) => LibraryTracksCompanion(
                 id: id,
@@ -594,6 +665,7 @@ class $$LibraryTracksTableTableManager
                 title: title,
                 artist: artist,
                 album: album,
+                artwork: artwork,
                 lastSeenAt: lastSeenAt,
               ),
           createCompanionCallback:
@@ -603,6 +675,7 @@ class $$LibraryTracksTableTableManager
                 Value<String?> title = const Value.absent(),
                 Value<String?> artist = const Value.absent(),
                 Value<String?> album = const Value.absent(),
+                Value<Uint8List?> artwork = const Value.absent(),
                 Value<DateTime?> lastSeenAt = const Value.absent(),
               }) => LibraryTracksCompanion.insert(
                 id: id,
@@ -610,6 +683,7 @@ class $$LibraryTracksTableTableManager
                 title: title,
                 artist: artist,
                 album: album,
+                artwork: artwork,
                 lastSeenAt: lastSeenAt,
               ),
           withReferenceMapper: (p0) => p0

@@ -48,6 +48,7 @@ class LocalDirectoryLibraryScanner implements LibraryScanner {
             title: metadata.title,
             artist: metadata.artist,
             album: metadata.album,
+            artwork: metadata.artwork,
             lastSeenAt: DateTime.now(),
           ),
         );

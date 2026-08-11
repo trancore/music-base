@@ -68,6 +68,7 @@ class SharedPreferencesLibraryRepository implements LibraryRepository {
                 title: Value(track.title),
                 artist: Value(track.artist),
                 album: Value(track.album),
+                artwork: Value(track.artwork),
                 lastSeenAt: Value(track.lastSeenAt),
               ),
             );
@@ -83,6 +84,7 @@ class SharedPreferencesLibraryRepository implements LibraryRepository {
       title: row.title,
       artist: row.artist,
       album: row.album,
+      artwork: row.artwork,
       lastSeenAt: row.lastSeenAt,
     );
   }
