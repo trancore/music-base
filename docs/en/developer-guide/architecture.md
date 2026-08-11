@@ -22,7 +22,9 @@ Audio playback is accessed through the `PlaybackService` abstraction. The curren
 
 Audio analysis is accessed through the `AudioAnalysisService` abstraction. Local tracks use `audio_decoder` to extract amplitude data, while SMB tracks and analysis failures use the playback-position fallback. The UI does not depend directly on the analysis engine. A real spectrum analyzer can be added as another implementation behind this service boundary.
 
-Frequency-spectrum calculation is isolated in the pure-Dart `calculateSpectrum` domain function. It bounds each input frame to 2,048 samples and the output to 128 bands so future Windows and Android PCM adapters can reuse it safely. A PCM adapter for the current `just_audio` playback path is not implemented yet.
+Frequency-spectrum calculation is isolated in the pure-Dart `calculateSpectrum` domain function. It bounds each input frame to 2,048 samples and the output to 128 bands so Windows and Android PCM adapters can reuse it safely.
+
+The Android `RealtimeSpectrumService` passes the Android AudioSession ID exposed by `just_audio` through a MethodChannel to the native `android.media.audiofx.Visualizer`, then publishes FFT callbacks to Flutter through an EventChannel. If the Visualizer cannot be created or released successfully, the UI falls back to the regular visualizer. The Windows implementation will be added as a separate WASAPI loopback boundary.
 
 Playlists are persisted through the `PlaylistRepository` abstraction. The current implementation stores playlist names and source paths in SharedPreferences, then resolves those paths against the current library cache when a playlist is played. Playlist data never copies the audio files.
 
