@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 
 import '../../domain/library/library_track.dart';
 import '../../domain/playback/playback_service.dart';
@@ -56,6 +57,12 @@ class JustAudioPlaybackService extends ChangeNotifier
 
   Future<void> _loadCurrentTrack() async {
     final track = _queue[_currentIndex];
+    final mediaItem = MediaItem(
+      id: track.sourcePath,
+      title: track.title ?? track.sourcePath,
+      artist: track.artist,
+      album: track.album,
+    );
     try {
       await _activeRemoteSource?.close();
       _activeRemoteSource = null;
@@ -74,10 +81,12 @@ class JustAudioPlaybackService extends ChangeNotifier
         if (factory == null) {
           throw const SmbConnectionException('SMB playback is not configured.');
         }
-        _activeRemoteSource = await factory.create(track);
+        _activeRemoteSource = await factory.create(track, tag: mediaItem);
         await _player.setAudioSource(_activeRemoteSource!);
       } else {
-        await _player.setFilePath(track.sourcePath);
+        await _player.setAudioSource(
+          AudioSource.file(track.sourcePath, tag: mediaItem),
+        );
       }
       await _player.play();
     } on PlayerException catch (error) {

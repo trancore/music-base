@@ -38,7 +38,7 @@ class SmbPlaybackSourceFactory {
   final SmbSettingsRepository _settingsRepository;
   final Set<SmbStreamAudioSource> _activeSources = {};
 
-  Future<SmbStreamAudioSource> create(LibraryTrack track) async {
+  Future<SmbStreamAudioSource> create(LibraryTrack track, {dynamic tag}) async {
     final location = SmbRemoteLocation.parse(track.sourcePath);
     final configuredSource = await _settingsRepository.loadSource();
     final password = await _settingsRepository.loadPassword();
@@ -70,6 +70,7 @@ class SmbPlaybackSourceFactory {
         path: location.path,
         length: length,
         contentType: _contentType(location.path),
+        tag: tag,
         onClose: _remove,
       );
       _activeSources.add(source);
@@ -106,6 +107,7 @@ class SmbStreamAudioSource extends StreamAudioSource {
     required this.path,
     required this.length,
     required this.contentType,
+    super.tag,
     required this.onClose,
   });
 
