@@ -9,7 +9,7 @@ Local directory example: `D:\Music`
 SMB share example: `\\<server>\<share>\[subfolder]`
 ```
 
-You can change the location in Settings. Select a local directory, or enter the SMB host, share, and optional subfolder. For an SMB source, enter the username and password and choose **Test connection and save**.
+You can change the location in Settings. In the local library section, choose a directory, or enter the SMB host, share, and optional subfolder. For an SMB source, enter the username and password and choose **Test connection and save**. The home screen also provides local directory selection and rescanning.
 
 ## Credentials
 

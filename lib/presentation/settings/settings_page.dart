@@ -1,7 +1,9 @@
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
+import '../../app/library_providers.dart';
 import '../../app/smb_providers.dart';
 import '../../domain/library/smb_source.dart';
 
@@ -53,6 +55,17 @@ class SettingsPage extends ConsumerWidget {
           ),
           const SizedBox(height: 40),
           Text(
+            'Local library',
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Choose a local directory to scan and use as the library source.',
+          ),
+          const SizedBox(height: 16),
+          const LocalLibrarySourceSection(),
+          const SizedBox(height: 40),
+          Text(
             'SMB library',
             style: Theme.of(context).textTheme.headlineMedium,
           ),
@@ -63,6 +76,44 @@ class SettingsPage extends ConsumerWidget {
         ],
       ),
     );
+  }
+}
+
+class LocalLibrarySourceSection extends ConsumerWidget {
+  const LocalLibrarySourceSection({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final library = ref.watch(libraryProvider);
+    final sourcePath = ref.read(libraryProvider.notifier).sourcePath;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.folder_outlined),
+          title: const Text('Current source'),
+          subtitle: Text(sourcePath ?? 'No local directory configured.'),
+          trailing: FilledButton.icon(
+            onPressed: library.isLoading ? null : () => _chooseDirectory(ref),
+            icon: const Icon(Icons.folder_open),
+            label: const Text('Choose'),
+          ),
+        ),
+        if (library.hasError)
+          Text(
+            'Library scan failed: ${library.error}',
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+        if (library.isLoading) const LinearProgressIndicator(),
+      ],
+    );
+  }
+
+  Future<void> _chooseDirectory(WidgetRef ref) async {
+    final path = await getDirectoryPath();
+    if (path == null || path.trim().isEmpty) return;
+    await ref.read(libraryProvider.notifier).scanDirectory(path);
   }
 }
 
