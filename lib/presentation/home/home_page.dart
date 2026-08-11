@@ -5,19 +5,36 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/library_providers.dart';
 import '../../app/playback_providers.dart';
 import '../../app/smb_providers.dart';
+import '../../domain/library/library_search.dart';
 import '../../domain/library/library_track.dart';
 import '../../domain/playback/playback_service.dart';
 
-class HomePage extends ConsumerWidget {
+class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends ConsumerState<HomePage> {
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final library = ref.watch(libraryProvider);
     final sourcePath = ref.read(libraryProvider.notifier).sourcePath;
     final playback = ref.watch(playbackServiceProvider);
     final snapshot = playback.snapshot;
     final smbSource = ref.watch(smbSourceProvider).valueOrNull;
+    final tracks = library.valueOrNull ?? const <LibraryTrack>[];
+    final filteredTracks = filterLibraryTracks(tracks, _searchQuery);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Music Base')),
@@ -72,14 +89,34 @@ class HomePage extends ConsumerWidget {
             ),
           ],
           const SizedBox(height: 24),
-          if (library.valueOrNull?.isNotEmpty ?? false) ...[
+          if (filteredTracks.isNotEmpty) ...[
             FilledButton.icon(
-              onPressed: () => playback.playQueue(library.valueOrNull!),
+              onPressed: () => playback.playQueue(filteredTracks),
               icon: const Icon(Icons.playlist_play),
               label: const Text('Play library'),
             ),
             const SizedBox(height: 12),
           ],
+          TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              labelText: 'Search library',
+              hintText: 'Title, artist, album, or file path',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _searchQuery.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Clear search',
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _searchQuery = '');
+                      },
+                      icon: const Icon(Icons.clear),
+                    ),
+            ),
+            onChanged: (value) => setState(() => _searchQuery = value),
+          ),
+          const SizedBox(height: 12),
           if (library.isLoading)
             const Center(child: CircularProgressIndicator())
           else if (library.hasError)
@@ -91,7 +128,7 @@ class HomePage extends ConsumerWidget {
                 subtitle: Text(library.error.toString()),
               ),
             )
-          else if (library.value!.isEmpty)
+          else if (tracks.isEmpty)
             const Card(
               child: ListTile(
                 leading: Icon(Icons.music_off),
@@ -101,8 +138,16 @@ class HomePage extends ConsumerWidget {
                 ),
               ),
             )
+          else if (filteredTracks.isEmpty)
+            const Card(
+              child: ListTile(
+                leading: Icon(Icons.search_off),
+                title: Text('No matching tracks'),
+                subtitle: Text('Try a different search term.'),
+              ),
+            )
           else
-            ...library.value!.map(
+            ...filteredTracks.map(
               (track) => _TrackTile(
                 track: track,
                 isCurrent:
