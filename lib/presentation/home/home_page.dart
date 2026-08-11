@@ -170,6 +170,10 @@ class _HomePageState extends ConsumerState<HomePage> {
             const SizedBox(height: 24),
             _PlaybackControls(playback: playback, snapshot: snapshot),
           ],
+          if (snapshot.queue.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _QueuePanel(playback: playback, snapshot: snapshot),
+          ],
         ],
       ),
     );
@@ -319,6 +323,47 @@ class _PlaybackControls extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _QueuePanel extends StatelessWidget {
+  const _QueuePanel({required this.playback, required this.snapshot});
+
+  final PlaybackService playback;
+  final PlaybackSnapshot snapshot;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ExpansionTile(
+        initiallyExpanded: true,
+        leading: const Icon(Icons.queue_music),
+        title: const Text('Playback queue'),
+        subtitle: Text('${snapshot.queue.length} tracks'),
+        children: [
+          for (var index = 0; index < snapshot.queue.length; index++)
+            ListTile(
+              selected: index == snapshot.currentIndex,
+              leading: Icon(
+                index == snapshot.currentIndex
+                    ? Icons.play_arrow
+                    : Icons.music_note_outlined,
+              ),
+              title: Text(
+                snapshot.queue[index].title ?? snapshot.queue[index].sourcePath,
+              ),
+              subtitle: Text(
+                snapshot.queue[index].artist ??
+                    snapshot.queue[index].sourcePath,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              onTap: () =>
+                  playback.playQueue(snapshot.queue, initialIndex: index),
+            ),
+        ],
       ),
     );
   }
