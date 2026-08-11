@@ -74,6 +74,13 @@ class CdImportPlanner {
       0,
       (count, medium) => count + medium.tracks.length,
     );
+    if (release.trackCount case final declaredTrackCount?
+        when declaredTrackCount != releaseTrackCount) {
+      throw CdImportPlanningException(
+        'The release declares $declaredTrackCount tracks, but contains '
+        '$releaseTrackCount metadata tracks.',
+      );
+    }
     if (cdTrackCount != null && cdTrackCount != releaseTrackCount) {
       throw CdImportPlanningException(
         'The CD has $cdTrackCount tracks, but the release has '

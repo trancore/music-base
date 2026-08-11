@@ -122,4 +122,38 @@ void main() {
       ),
     );
   });
+
+  test('rejects inconsistent release track counts', () {
+    const planner = CdImportPlanner();
+    const inconsistentRelease = MusicBrainzRelease(
+      id: 'release-id',
+      title: 'Album',
+      trackCount: 3,
+      media: [
+        MusicBrainzMedium(
+          position: 1,
+          tracks: [
+            MusicBrainzTrack(position: 1, title: 'Intro'),
+            MusicBrainzTrack(position: 2, title: 'Song'),
+          ],
+        ),
+      ],
+    );
+
+    expect(
+      () => planner.create(
+        release: inconsistentRelease,
+        cdTracks: const [CdTrack(number: 1), CdTrack(number: 2)],
+        outputDirectory: '/Music',
+        format: CdImportFormat.flac,
+      ),
+      throwsA(
+        isA<CdImportPlanningException>().having(
+          (error) => error.message,
+          'message',
+          'The release declares 3 tracks, but contains 2 metadata tracks.',
+        ),
+      ),
+    );
+  });
 }
