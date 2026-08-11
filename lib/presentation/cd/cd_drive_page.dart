@@ -12,6 +12,7 @@ import '../../app/musicbrainz_providers.dart';
 import '../../domain/cd/cd_drive_service.dart';
 import '../../domain/cd/cd_import_plan.dart';
 import '../../domain/cd/cd_ripping_service.dart';
+import '../../domain/library/library_path.dart';
 import '../../domain/metadata/musicbrainz_release.dart';
 
 class CdDrivePage extends ConsumerStatefulWidget {
@@ -487,18 +488,7 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
       final sourcePath = library.sourcePath;
       if (sourcePath == null || sourcePath.startsWith('smb://')) return null;
 
-      final normalizedSource = p.normalize(sourcePath);
-      final normalizedOutput = p.normalize(outputDirectory);
-      final sourceForComparison = Platform.isWindows
-          ? normalizedSource.toLowerCase()
-          : normalizedSource;
-      final outputForComparison = Platform.isWindows
-          ? normalizedOutput.toLowerCase()
-          : normalizedOutput;
-      final isWithinLibrary =
-          outputForComparison == sourceForComparison ||
-          outputForComparison.startsWith('$sourceForComparison${p.separator}');
-      if (!isWithinLibrary) return null;
+      if (!isPathWithinLibrary(sourcePath, outputDirectory)) return null;
 
       await library.scanDirectory(sourcePath);
       return null;
