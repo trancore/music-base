@@ -17,4 +17,4 @@ If the SMB share requires authentication, enter the SMB username and password. T
 
 ## Android
 
-The Android app is planned to use the same SMB settings model. The current SMB feature provides connection testing, settings storage, and library scanning. Direct playback from SMB and CD ripping will be added later. CD ripping is a Windows-only feature.
+The Android app is planned to use the same SMB settings model. The current SMB feature provides connection testing, settings storage, library scanning, and direct playback from SMB. CD ripping is a later Windows-only feature.
