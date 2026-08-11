@@ -73,10 +73,17 @@ class CdImportPlanner {
         .expand((medium) => medium.tracks)
         .where((track) => track.title.isNotEmpty)
         .toList(growable: false);
-    if (metadataTracks.length != cdTracks.length) {
+    if (metadataTracks.isEmpty) {
+      throw const CdImportPlanningException(
+        'The release does not contain any metadata tracks.',
+      );
+    }
+    if (cdTracks.any(
+      (track) => track.number < 1 || track.number > metadataTracks.length,
+    )) {
       throw CdImportPlanningException(
-        'CD has ${cdTracks.length} tracks, but the release has '
-        '${metadataTracks.length} metadata tracks.',
+        'The release has ${metadataTracks.length} metadata tracks, but a '
+        'selected CD track is outside that range.',
       );
     }
     if (outputDirectory.trim().isEmpty) {
@@ -86,10 +93,10 @@ class CdImportPlanner {
     final artist = _safeSegment(release.artist ?? 'Unknown Artist');
     final album = _safeSegment(release.title);
     final tracks = <CdImportTrack>[];
-    for (var index = 0; index < metadataTracks.length; index++) {
-      final metadataTrack = metadataTracks[index];
-      final cdTrack = cdTracks[index];
-      final discNumber = _discNumber(release, index);
+    for (final cdTrack in cdTracks) {
+      final metadataIndex = cdTrack.number - 1;
+      final metadataTrack = metadataTracks[metadataIndex];
+      final discNumber = _discNumber(release, metadataIndex);
       final fileName =
           '${cdTrack.number.toString().padLeft(2, '0')} - '
           '${_safeSegment(metadataTrack.title)}${format.extension}';
