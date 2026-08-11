@@ -31,10 +31,43 @@ void main() {
     expect(find.text('Music library'), findsOneWidget);
     expect(find.text('Library'), findsOneWidget);
   });
+
+  testWidgets('shows inferred artist and album in a library track row', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          libraryRepositoryProvider.overrideWithValue(
+            const _FakeLibraryRepository(
+              tracks: [
+                LibraryTrack(
+                  sourcePath: '/Music/Artist/Album/01 - Song.flac',
+                  title: 'Song',
+                  artist: 'Artist',
+                  album: 'Album',
+                ),
+              ],
+            ),
+          ),
+        ],
+        child: const MusicBaseApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Artist · Album'), findsOneWidget);
+  });
 }
 
 class _FakeLibraryRepository implements LibraryRepository {
-  const _FakeLibraryRepository();
+  const _FakeLibraryRepository({this.tracks = const []});
+
+  final List<LibraryTrack> tracks;
 
   @override
   Future<String?> loadSourcePath() async => null;
@@ -43,7 +76,7 @@ class _FakeLibraryRepository implements LibraryRepository {
   Future<void> saveSourcePath(String path) async {}
 
   @override
-  Future<List<LibraryTrack>> loadTracks() async => const [];
+  Future<List<LibraryTrack>> loadTracks() async => tracks;
 
   @override
   Future<List<LibraryTrack>> scanAndCache(String path) async => const [];
