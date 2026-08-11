@@ -22,6 +22,10 @@ class FfmpegCdRippingService implements CdRippingService {
     required CdTrack track,
     required String outputPath,
     required CdImportFormat format,
+    String? title,
+    String? artist,
+    String? album,
+    String? releaseDate,
   }) async {
     if (!Platform.isWindows) {
       throw const CdRippingException(
@@ -45,6 +49,17 @@ class FfmpegCdRippingService implements CdRippingService {
       CdImportFormat.flac => ['-c:a', 'flac'],
       CdImportFormat.mp3 => ['-c:a', 'libmp3lame', '-q:a', '2'],
     };
+    final metadataArguments = <String>[];
+    for (final metadata in {
+      'title': title,
+      'artist': artist,
+      'album': album,
+      'date': releaseDate,
+    }.entries) {
+      if (metadata.value case final value? when value.trim().isNotEmpty) {
+        metadataArguments.addAll(['-metadata', '${metadata.key}=$value']);
+      }
+    }
     final result = await _processRunner(executable, [
       '-hide_banner',
       '-loglevel',
@@ -57,6 +72,7 @@ class FfmpegCdRippingService implements CdRippingService {
       '-map',
       '0:a:${track.number - 1}',
       ...codecArguments,
+      ...metadataArguments,
       outputPath,
     ]);
     if (result.exitCode != 0) {

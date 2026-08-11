@@ -7,6 +7,10 @@ abstract interface class CdRippingService {
     required CdTrack track,
     required String outputPath,
     required CdImportFormat format,
+    String? title,
+    String? artist,
+    String? album,
+    String? releaseDate,
   });
 }
 

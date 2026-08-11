@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
@@ -6,8 +7,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 
 import '../../app/cd_providers.dart';
+import '../../app/musicbrainz_providers.dart';
 import '../../domain/cd/cd_drive_service.dart';
 import '../../domain/cd/cd_import_plan.dart';
+import '../../domain/metadata/musicbrainz_release.dart';
 
 class CdDrivePage extends ConsumerStatefulWidget {
   const CdDrivePage({super.key});
@@ -26,6 +29,13 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
   String? _outputDirectory;
   CdImportFormat _format = CdImportFormat.flac;
   CdDrive? _selectedDrive;
+  final _artistController = TextEditingController();
+  final _albumController = TextEditingController();
+  bool _metadataLoading = false;
+  bool _metadataSearched = false;
+  String? _metadataError;
+  List<MusicBrainzRelease> _releaseCandidates = const [];
+  MusicBrainzRelease? _release;
   int _completedTracks = 0;
   int _totalTracks = 0;
   List<CdDrive> _drives = const [];
@@ -45,6 +55,8 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _artistController.dispose();
+    _albumController.dispose();
     super.dispose();
   }
 
@@ -157,6 +169,81 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
               ],
             ),
             const SizedBox(height: 12),
+            Text(
+              'MusicBrainz metadata',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _artistController,
+                    decoration: const InputDecoration(labelText: 'Artist'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: _albumController,
+                    decoration: const InputDecoration(labelText: 'Album'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: 'Search MusicBrainz',
+                  onPressed: _metadataLoading ? null : _searchMetadata,
+                  icon: _metadataLoading
+                      ? const SizedBox.square(
+                          dimension: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.search),
+                ),
+              ],
+            ),
+            if (_metadataError case final message?)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  message,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+            if (_releaseCandidates.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              for (final candidate in _releaseCandidates)
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.album_outlined),
+                  title: Text(candidate.title),
+                  subtitle: Text(
+                    [
+                      ?candidate.artist,
+                      ?candidate.releaseDate,
+                      if (candidate.trackCount case final count?)
+                        '$count tracks',
+                    ].join(' · '),
+                  ),
+                  trailing: TextButton(
+                    onPressed: _metadataLoading
+                        ? null
+                        : () => _selectRelease(candidate),
+                    child: const Text('Use'),
+                  ),
+                ),
+            ] else if (_metadataSearched)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text('No matching releases found.'),
+              ),
+            if (_release case final release?)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text('Selected release: ${release.title}'),
+              ),
+            const SizedBox(height: 12),
             DropdownButtonFormField<CdImportFormat>(
               initialValue: _format,
               decoration: const InputDecoration(labelText: 'Format'),
@@ -231,6 +318,63 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
     });
   }
 
+  Future<void> _searchMetadata() async {
+    final artist = _artistController.text.trim();
+    final album = _albumController.text.trim();
+    if (artist.isEmpty && album.isEmpty) {
+      setState(() => _metadataError = 'Enter an artist or album name.');
+      return;
+    }
+    setState(() {
+      _metadataLoading = true;
+      _metadataSearched = false;
+      _metadataError = null;
+      _release = null;
+    });
+    try {
+      final results = await ref
+          .read(musicBrainzServiceProvider)
+          .searchReleases(artist: artist, album: album);
+      if (!mounted) return;
+      setState(() {
+        _metadataLoading = false;
+        _metadataSearched = true;
+        _releaseCandidates = results;
+      });
+    } on Exception catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _metadataLoading = false;
+        _metadataSearched = true;
+        _metadataError = error.toString();
+      });
+    }
+  }
+
+  Future<void> _selectRelease(MusicBrainzRelease candidate) async {
+    setState(() {
+      _metadataLoading = true;
+      _metadataError = null;
+    });
+    try {
+      final release = await ref
+          .read(musicBrainzServiceProvider)
+          .getRelease(candidate.id);
+      if (!mounted) return;
+      setState(() {
+        _metadataLoading = false;
+        _release = release;
+        _releaseCandidates = const [];
+      });
+    } on Exception catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _metadataLoading = false;
+        _metadataError = error.toString();
+      });
+    }
+  }
+
   Future<void> _ripSelectedTracks(
     CdDrive drive,
     Set<int> selectedTrackNumbers,
@@ -245,6 +389,24 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
         .toList(growable: false);
     if (selected.isEmpty) return;
 
+    late final List<_CdRipTarget> targets;
+    try {
+      targets = _buildRipTargets(selected);
+    } on Exception catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.toString());
+      return;
+    }
+    final existingPaths = targets
+        .where((target) => File(target.outputPath).existsSync())
+        .map((target) => target.outputPath)
+        .toList(growable: false);
+    if (existingPaths.isNotEmpty) {
+      if (!mounted) return;
+      await _showExistingFiles(existingPaths);
+      return;
+    }
+
     setState(() {
       _ripping = true;
       _cancelRequested = false;
@@ -254,17 +416,19 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
       _statusMessage = null;
     });
     try {
-      for (final track in selected) {
+      for (final target in targets) {
         if (_cancelRequested) break;
-        final fileName =
-            'Track ${track.number.toString().padLeft(2, '0')}${_format.extension}';
         await ref
             .read(cdRippingServiceProvider)
             .ripTrack(
               drive: drive,
-              track: track,
-              outputPath: p.join(outputDirectory, fileName),
+              track: target.track,
+              outputPath: target.outputPath,
               format: _format,
+              title: target.title,
+              artist: target.artist,
+              album: target.album,
+              releaseDate: target.releaseDate,
             );
         if (!mounted) return;
         setState(() => _completedTracks++);
@@ -283,6 +447,68 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
         _error = error.toString();
       });
     }
+  }
+
+  List<_CdRipTarget> _buildRipTargets(List<CdTrack> tracks) {
+    final release = _release;
+    if (release == null) {
+      final outputDirectory = _outputDirectory!.trim();
+      return [
+        for (final track in tracks)
+          _CdRipTarget(
+            track: track,
+            outputPath: p.join(
+              outputDirectory,
+              'Track ${track.number.toString().padLeft(2, '0')}${_format.extension}',
+            ),
+          ),
+      ];
+    }
+    final plan = const CdImportPlanner().create(
+      release: release,
+      cdTracks: tracks,
+      outputDirectory: _outputDirectory!.trim(),
+      format: _format,
+    );
+    return [
+      for (final planned in plan.tracks)
+        _CdRipTarget(
+          track: tracks.firstWhere(
+            (track) => track.number == planned.sourceTrackNumber,
+          ),
+          outputPath: planned.targetPath,
+          title: planned.title,
+          artist: planned.artist,
+          album: planned.album,
+          releaseDate: planned.releaseDate,
+        ),
+    ];
+  }
+
+  Future<void> _showExistingFiles(List<String> paths) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Existing files found'),
+        content: SizedBox(
+          width: 560,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              const Text('Import stopped to avoid overwriting these files.'),
+              const SizedBox(height: 12),
+              for (final path in paths) Text(path),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _refresh({bool silent = false}) async {
@@ -336,6 +562,24 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
       });
     }
   }
+}
+
+class _CdRipTarget {
+  const _CdRipTarget({
+    required this.track,
+    required this.outputPath,
+    this.title,
+    this.artist,
+    this.album,
+    this.releaseDate,
+  });
+
+  final CdTrack track;
+  final String outputPath;
+  final String? title;
+  final String? artist;
+  final String? album;
+  final String? releaseDate;
 }
 
 class _CdDriveCard extends StatelessWidget {
