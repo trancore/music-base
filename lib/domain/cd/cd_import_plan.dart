@@ -80,6 +80,12 @@ class CdImportPlanner {
         '$releaseTrackCount metadata tracks.',
       );
     }
+    final selectedTrackNumbers = <int>{};
+    if (cdTracks.any((track) => !selectedTrackNumbers.add(track.number))) {
+      throw const CdImportPlanningException(
+        'A CD track cannot be selected more than once.',
+      );
+    }
     final metadataTracks = release.media
         .expand((medium) => medium.tracks)
         .where((track) => track.title.isNotEmpty)

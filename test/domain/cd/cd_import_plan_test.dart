@@ -102,4 +102,24 @@ void main() {
       ),
     );
   });
+
+  test('rejects duplicate CD track numbers', () {
+    const planner = CdImportPlanner();
+
+    expect(
+      () => planner.create(
+        release: release,
+        cdTracks: const [CdTrack(number: 1), CdTrack(number: 1)],
+        outputDirectory: '/Music',
+        format: CdImportFormat.flac,
+      ),
+      throwsA(
+        isA<CdImportPlanningException>().having(
+          (error) => error.message,
+          'message',
+          'A CD track cannot be selected more than once.',
+        ),
+      ),
+    );
+  });
 }
