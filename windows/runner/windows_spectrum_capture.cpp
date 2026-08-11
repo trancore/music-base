@@ -66,7 +66,8 @@ void WindowsSpectrumCapture::Capture(std::unique_ptr<EventSink> sink) {
   if (FAILED(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr,
                               CLSCTX_ALL, IID_PPV_ARGS(&enumerator))) ||
       FAILED(enumerator->GetDefaultAudioEndpoint(eRender, eConsole, &device)) ||
-      FAILED(device->Activate(IID_PPV_ARGS(&client), CLSCTX_ALL, nullptr)) ||
+      FAILED(device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr,
+                              reinterpret_cast<void**>(&client))) ||
       FAILED(client->GetMixFormat(&format))) {
     cleanup();
     return;
