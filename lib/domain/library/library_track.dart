@@ -12,4 +12,6 @@ class LibraryTrack {
   final String? artist;
   final String? album;
   final DateTime? lastSeenAt;
+
+  bool get isRemote => sourcePath.startsWith('smb://');
 }
