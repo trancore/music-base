@@ -111,7 +111,7 @@ flutter test
 flutter build windows
 ```
 
-Android対応後は、必要に応じて次も実行します。
+Android対応の変更後は、必要に応じて次も実行します。
 
 ```bash
 flutter build apk
