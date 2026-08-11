@@ -3,6 +3,7 @@
 #include <optional>
 
 #include <flutter/method_channel.h>
+#include <flutter/event_channel.h>
 #include <flutter/standard_method_codec.h>
 
 #include "flutter/generated_plugin_registrant.h"
