@@ -486,6 +486,7 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
       cdTracks: tracks,
       outputDirectory: _outputDirectory!.trim(),
       format: _format,
+      cdTrackCount: tracks.length,
     );
     return [
       for (final planned in plan.tracks)

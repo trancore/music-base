@@ -81,4 +81,25 @@ void main() {
       '/Music/Artist/Album _ Name/02 - Song_ One.flac',
     );
   });
+
+  test('rejects a release whose total track count differs from the CD', () {
+    const planner = CdImportPlanner();
+
+    expect(
+      () => planner.create(
+        release: release,
+        cdTracks: const [CdTrack(number: 1)],
+        cdTrackCount: 1,
+        outputDirectory: '/Music',
+        format: CdImportFormat.flac,
+      ),
+      throwsA(
+        isA<CdImportPlanningException>().having(
+          (error) => error.message,
+          'message',
+          contains('The CD has 1 tracks, but the release has 2'),
+        ),
+      ),
+    );
+  });
 }

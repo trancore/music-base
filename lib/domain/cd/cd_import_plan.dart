@@ -67,8 +67,19 @@ class CdImportPlanner {
     required List<CdTrack> cdTracks,
     required String outputDirectory,
     required CdImportFormat format,
+    int? cdTrackCount,
     Set<String> existingPaths = const {},
   }) {
+    final releaseTrackCount = release.media.fold<int>(
+      0,
+      (count, medium) => count + medium.tracks.length,
+    );
+    if (cdTrackCount != null && cdTrackCount != releaseTrackCount) {
+      throw CdImportPlanningException(
+        'The CD has $cdTrackCount tracks, but the release has '
+        '$releaseTrackCount metadata tracks.',
+      );
+    }
     final metadataTracks = release.media
         .expand((medium) => medium.tracks)
         .where((track) => track.title.isNotEmpty)
