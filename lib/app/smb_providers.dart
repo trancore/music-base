@@ -42,4 +42,12 @@ class SmbSourceNotifier extends AsyncNotifier<SmbSource?> {
       return source;
     });
   }
+
+  Future<void> clear() async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      await _repository.clear();
+      return null;
+    });
+  }
 }

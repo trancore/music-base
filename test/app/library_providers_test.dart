@@ -64,6 +64,9 @@ class _FakeSmbSettingsRepository implements SmbSettingsRepository {
 
   @override
   Future<void> save(SmbSource source, String password) async {}
+
+  @override
+  Future<void> clear() async {}
 }
 
 class _FakeSmbSourceNotifier extends SmbSourceNotifier {
