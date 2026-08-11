@@ -10,7 +10,7 @@
 
 class WindowsSpectrumCapture {
  public:
-  using EventSink = flutter::EventChannel<flutter::EncodableValue>::EventSink;
+  using EventSink = flutter::EventSink<flutter::EncodableValue>;
 
   WindowsSpectrumCapture() = default;
   ~WindowsSpectrumCapture();
