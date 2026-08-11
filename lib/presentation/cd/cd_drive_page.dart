@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 
 import '../../app/cd_providers.dart';
+import '../../app/library_providers.dart';
 import '../../app/musicbrainz_providers.dart';
 import '../../domain/cd/cd_drive_service.dart';
 import '../../domain/cd/cd_import_plan.dart';
@@ -439,12 +440,22 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
         setState(() => _completedTracks++);
       }
       if (!mounted) return;
+      final libraryRefreshError = _cancelRequested
+          ? null
+          : await _refreshLibraryAfterImport();
+      if (!mounted) return;
       setState(() {
         _ripping = false;
         _cancellationToken = null;
-        _statusMessage = _cancelRequested
-            ? 'Ripping cancelled after $_completedTracks tracks.'
-            : 'Ripping completed: $_completedTracks tracks.';
+        _statusMessage = switch (libraryRefreshError) {
+          final message? =>
+            'Ripping completed: $_completedTracks tracks. '
+                'Library refresh failed: $message',
+          null =>
+            _cancelRequested
+                ? 'Ripping cancelled after $_completedTracks tracks.'
+                : 'Ripping completed: $_completedTracks tracks.',
+        };
       });
     } on Exception catch (error) {
       if (!mounted) return;
@@ -464,6 +475,36 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
   void _requestCancellation() {
     _cancellationToken?.cancel();
     setState(() => _cancelRequested = true);
+  }
+
+  Future<String?> _refreshLibraryAfterImport() async {
+    final outputDirectory = _outputDirectory?.trim();
+    if (outputDirectory == null || outputDirectory.isEmpty) return null;
+
+    try {
+      final library = ref.read(libraryProvider.notifier);
+      await ref.read(libraryProvider.future);
+      final sourcePath = library.sourcePath;
+      if (sourcePath == null || sourcePath.startsWith('smb://')) return null;
+
+      final normalizedSource = p.normalize(sourcePath);
+      final normalizedOutput = p.normalize(outputDirectory);
+      final sourceForComparison = Platform.isWindows
+          ? normalizedSource.toLowerCase()
+          : normalizedSource;
+      final outputForComparison = Platform.isWindows
+          ? normalizedOutput.toLowerCase()
+          : normalizedOutput;
+      final isWithinLibrary =
+          outputForComparison == sourceForComparison ||
+          outputForComparison.startsWith('$sourceForComparison${p.separator}');
+      if (!isWithinLibrary) return null;
+
+      await library.scanDirectory(sourcePath);
+      return null;
+    } on Exception catch (error) {
+      return error.toString();
+    }
   }
 
   List<_CdRipTarget> _buildRipTargets(List<CdTrack> tracks) {
