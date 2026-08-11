@@ -52,7 +52,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           ),
           const SizedBox(height: 8),
           const Text(
-            'The Windows foundation is ready for library and playback services.',
+            'Local and SMB library playback is available on Windows, macOS, and Android.',
           ),
           const SizedBox(height: 24),
           Card(

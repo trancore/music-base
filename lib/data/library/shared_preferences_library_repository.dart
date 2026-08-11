@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../domain/library/library_repository.dart';
+import '../../domain/library/local_directory_access_service.dart';
 import '../../domain/library/library_scanner.dart';
 import '../../domain/library/library_track.dart' as domain;
 import '../../domain/library/smb_source.dart';
@@ -14,6 +15,7 @@ class SharedPreferencesLibraryRepository implements LibraryRepository {
     required this._database,
     required this._scanner,
     required this._smbScanner,
+    this.directoryAccess = const _NoopDirectoryAccessService(),
   });
 
   static const _sourcePathKey = 'library.source_path';
@@ -22,14 +24,23 @@ class SharedPreferencesLibraryRepository implements LibraryRepository {
   final db.AppDatabase _database;
   final LibraryScanner _scanner;
   final SmbLibraryScanner _smbScanner;
+  final LocalDirectoryAccessService directoryAccess;
 
   @override
-  Future<String?> loadSourcePath() async =>
-      _preferences.getString(_sourcePathKey);
+  Future<String?> loadSourcePath() async {
+    final path = _preferences.getString(_sourcePathKey);
+    if (path != null && !path.startsWith('smb://')) {
+      await directoryAccess.prepareAccess(path);
+    }
+    return path;
+  }
 
   @override
   Future<void> saveSourcePath(String path) async {
     await _preferences.setString(_sourcePathKey, path);
+    if (!path.startsWith('smb://')) {
+      await directoryAccess.saveAccess(path);
+    }
   }
 
   @override
@@ -40,6 +51,7 @@ class SharedPreferencesLibraryRepository implements LibraryRepository {
 
   @override
   Future<List<domain.LibraryTrack>> scanAndCache(String path) async {
+    await directoryAccess.prepareAccess(path);
     final tracks = await _scanner.scan(path);
     return _replaceCache(path, tracks);
   }
@@ -88,4 +100,14 @@ class SharedPreferencesLibraryRepository implements LibraryRepository {
       lastSeenAt: row.lastSeenAt,
     );
   }
+}
+
+class _NoopDirectoryAccessService implements LocalDirectoryAccessService {
+  const _NoopDirectoryAccessService();
+
+  @override
+  Future<void> prepareAccess(String path) async {}
+
+  @override
+  Future<void> saveAccess(String path) async {}
 }

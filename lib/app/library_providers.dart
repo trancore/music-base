@@ -1,9 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 
 import '../data/library/local_directory_library_scanner.dart';
+import '../data/library/default_local_directory_access_service.dart';
+import '../data/library/macos_local_directory_access_service.dart';
 import '../data/library/shared_preferences_library_repository.dart';
 import '../data/library/smb_library_scanner.dart';
 import '../domain/library/library_repository.dart';
+import '../domain/library/local_directory_access_service.dart';
 import '../domain/library/library_track.dart';
 import 'providers.dart';
 import 'smb_providers.dart';
@@ -18,8 +22,17 @@ final libraryRepositoryProvider = Provider<LibraryRepository>((ref) {
     database: ref.watch(appDatabaseProvider),
     scanner: ref.watch(libraryScannerProvider),
     smbScanner: ref.watch(smbLibraryScannerProvider),
+    directoryAccess: ref.watch(localDirectoryAccessServiceProvider),
   );
 });
+
+final localDirectoryAccessServiceProvider =
+    Provider<LocalDirectoryAccessService>((ref) {
+      if (defaultTargetPlatform == TargetPlatform.macOS) {
+        return MacosLocalDirectoryAccessService();
+      }
+      return const DefaultLocalDirectoryAccessService();
+    });
 
 final smbLibraryScannerProvider = Provider((ref) => const SmbLibraryScanner());
 

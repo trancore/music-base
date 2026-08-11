@@ -22,7 +22,7 @@ class WindowsRealtimeSpectrumService implements RealtimeSpectrumService {
       );
 
   @override
-  Future<void> start({required int audioSessionId}) =>
+  Future<void> start({int? audioSessionId}) =>
       _methods.invokeMethod<void>('start');
 
   @override

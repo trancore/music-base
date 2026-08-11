@@ -10,6 +10,7 @@ on:
       - 'pubspec.lock'
       - 'test/**'
       - 'windows/**'
+      - 'macos/**'
   push:
     branches:
       - main
@@ -21,6 +22,7 @@ on:
       - 'pubspec.lock'
       - 'test/**'
       - 'windows/**'
+      - 'macos/**'
 
 permissions:
   contents: read

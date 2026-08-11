@@ -1,10 +1,10 @@
 ---
 layout: home
 title: Music Base
-titleTemplate: Windows-first music player
+titleTemplate: Cross-platform music player
 hero:
   name: Music Base
-  text: Windows-first music player
+  text: Cross-platform music player
   tagline: Manage and play your music from a local or SMB library.
   actions:
     - theme: brand
