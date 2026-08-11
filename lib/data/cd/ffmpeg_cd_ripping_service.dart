@@ -14,13 +14,16 @@ class FfmpegCdRippingService implements CdRippingService {
   FfmpegCdRippingService({
     FfmpegProcessRunner? processRunner,
     FfmpegProcessStarter? processStarter,
+    bool? isWindows,
     this.executable = 'ffmpeg.exe',
-  }) : _processStarter = processStarter ?? Process.start {
+  }) : _processStarter = processStarter ?? Process.start,
+       _isWindows = isWindows ?? Platform.isWindows {
     _processRunner = processRunner;
   }
 
   late final FfmpegProcessRunner? _processRunner;
   final FfmpegProcessStarter _processStarter;
+  final bool _isWindows;
   final String executable;
 
   @override
@@ -35,7 +38,7 @@ class FfmpegCdRippingService implements CdRippingService {
     String? releaseDate,
     CdRippingCancellationToken? cancellationToken,
   }) async {
-    if (!Platform.isWindows) {
+    if (!_isWindows) {
       throw const CdRippingException(
         'CD ripping is only available on Windows.',
       );
