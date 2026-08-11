@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import '../../domain/cd/cd_drive_service.dart';
 import '../../domain/cd/cd_import_plan.dart';
@@ -6,14 +7,20 @@ import '../../domain/cd/cd_ripping_service.dart';
 
 typedef FfmpegProcessRunner =
     Future<ProcessResult> Function(String executable, List<String> arguments);
+typedef FfmpegProcessStarter =
+    Future<Process> Function(String executable, List<String> arguments);
 
 class FfmpegCdRippingService implements CdRippingService {
   FfmpegCdRippingService({
     FfmpegProcessRunner? processRunner,
+    FfmpegProcessStarter? processStarter,
     this.executable = 'ffmpeg.exe',
-  }) : _processRunner = processRunner ?? Process.run;
+  }) : _processStarter = processStarter ?? Process.start {
+    _processRunner = processRunner;
+  }
 
-  final FfmpegProcessRunner _processRunner;
+  late final FfmpegProcessRunner? _processRunner;
+  final FfmpegProcessStarter _processStarter;
   final String executable;
 
   @override
@@ -26,6 +33,7 @@ class FfmpegCdRippingService implements CdRippingService {
     String? artist,
     String? album,
     String? releaseDate,
+    CdRippingCancellationToken? cancellationToken,
   }) async {
     if (!Platform.isWindows) {
       throw const CdRippingException(
@@ -44,6 +52,9 @@ class FfmpegCdRippingService implements CdRippingService {
     if (File(outputPath).existsSync()) {
       throw CdRippingException('Refusing to overwrite: $outputPath');
     }
+    if (cancellationToken?.isCancelled ?? false) {
+      throw const CdRippingException('Ripping cancelled.');
+    }
 
     final codecArguments = switch (format) {
       CdImportFormat.flac => ['-c:a', 'flac'],
@@ -60,7 +71,7 @@ class FfmpegCdRippingService implements CdRippingService {
         metadataArguments.addAll(['-metadata', '${metadata.key}=$value']);
       }
     }
-    final result = await _processRunner(executable, [
+    final arguments = [
       '-hide_banner',
       '-loglevel',
       'error',
@@ -74,11 +85,50 @@ class FfmpegCdRippingService implements CdRippingService {
       ...codecArguments,
       ...metadataArguments,
       outputPath,
-    ]);
+    ];
+    final runner = _processRunner;
+    final result = runner != null
+        ? await runner(executable, arguments)
+        : await _runCancellableProcess(
+            executable,
+            arguments,
+            cancellationToken,
+          );
     if (result.exitCode != 0) {
       throw CdRippingException(
         'ffmpeg failed for track ${track.number}: ${result.stderr}',
       );
     }
+  }
+
+  Future<ProcessResult> _runCancellableProcess(
+    String executable,
+    List<String> arguments,
+    CdRippingCancellationToken? cancellationToken,
+  ) async {
+    final process = await _processStarter(executable, arguments);
+    final stdoutFuture = process.stdout.transform(utf8.decoder).join();
+    final stderrFuture = process.stderr.transform(utf8.decoder).join();
+    final exitCodeFuture = process.exitCode;
+    int? exitCode;
+    while (exitCode == null) {
+      if (cancellationToken?.isCancelled ?? false) {
+        process.kill();
+        await exitCodeFuture;
+        await Future.wait([stdoutFuture, stderrFuture]);
+        throw const CdRippingException('Ripping cancelled.');
+      }
+      final completed = await Future.any<Object?>([
+        exitCodeFuture,
+        Future<Object?>.delayed(const Duration(milliseconds: 50)),
+      ]);
+      if (completed is int) exitCode = completed;
+    }
+    return ProcessResult(
+      process.pid,
+      exitCode,
+      await stdoutFuture,
+      await stderrFuture,
+    );
   }
 }

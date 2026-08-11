@@ -10,6 +10,7 @@ import '../../app/cd_providers.dart';
 import '../../app/musicbrainz_providers.dart';
 import '../../domain/cd/cd_drive_service.dart';
 import '../../domain/cd/cd_import_plan.dart';
+import '../../domain/cd/cd_ripping_service.dart';
 import '../../domain/metadata/musicbrainz_release.dart';
 
 class CdDrivePage extends ConsumerStatefulWidget {
@@ -24,6 +25,7 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
   bool _loading = false;
   bool _ripping = false;
   bool _cancelRequested = false;
+  CdRippingCancellationToken? _cancellationToken;
   String? _error;
   String? _statusMessage;
   String? _outputDirectory;
@@ -55,6 +57,7 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _cancellationToken?.cancel();
     _artistController.dispose();
     _albumController.dispose();
     super.dispose();
@@ -268,7 +271,7 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                  onPressed: () => setState(() => _cancelRequested = true),
+                  onPressed: _requestCancellation,
                   child: const Text('Cancel'),
                 ),
               ),
@@ -410,6 +413,7 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
     setState(() {
       _ripping = true;
       _cancelRequested = false;
+      _cancellationToken = CdRippingCancellationToken();
       _completedTracks = 0;
       _totalTracks = selected.length;
       _error = null;
@@ -429,6 +433,7 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
               artist: target.artist,
               album: target.album,
               releaseDate: target.releaseDate,
+              cancellationToken: _cancellationToken,
             );
         if (!mounted) return;
         setState(() => _completedTracks++);
@@ -436,17 +441,29 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
       if (!mounted) return;
       setState(() {
         _ripping = false;
+        _cancellationToken = null;
         _statusMessage = _cancelRequested
             ? 'Ripping cancelled after $_completedTracks tracks.'
             : 'Ripping completed: $_completedTracks tracks.';
       });
     } on Exception catch (error) {
       if (!mounted) return;
+      final cancelled = _cancellationToken?.isCancelled ?? false;
       setState(() {
         _ripping = false;
-        _error = error.toString();
+        _cancellationToken = null;
+        if (cancelled) {
+          _statusMessage = 'Ripping cancelled after $_completedTracks tracks.';
+        } else {
+          _error = error.toString();
+        }
       });
     }
+  }
+
+  void _requestCancellation() {
+    _cancellationToken?.cancel();
+    setState(() => _cancelRequested = true);
   }
 
   List<_CdRipTarget> _buildRipTargets(List<CdTrack> tracks) {

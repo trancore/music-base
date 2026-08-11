@@ -8,4 +8,4 @@ The import plan lets you review FLAC or MP3, the destination, track order, and t
 
 The CD import screen shows CD drives detected by Windows and whether media is loaded. While the screen is open, it polls periodically and reports CD insertion or removal. When media is loaded, you can select a drive and tracks, choose an output directory and FLAC or MP3, then start the import. Multiple tracks are processed sequentially with progress and cancellation support.
 
-Import execution requires `ffmpeg.exe` on Windows. Tracks are converted to FLAC or MP3, and an existing destination file is never overwritten. Without a selected MusicBrainz release, imports use names such as `Track 01.flac` or `Track 01.mp3`.
+Import execution requires `ffmpeg.exe` on Windows. Tracks are converted to FLAC or MP3, and an existing destination file is never overwritten. Progress is shown while importing; cancelling stops the active ffmpeg process and prevents the next track from starting. Without a selected MusicBrainz release, imports use names such as `Track 01.flac` or `Track 01.mp3`.

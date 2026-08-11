@@ -36,4 +36,4 @@ Windows CD drive detection is isolated behind `CdDriveService`. The Windows impl
 
 CD track listing is isolated behind `CdTrackService`; the Windows implementation obtains track count and lengths from the CD Audio MCI API. MCI and PowerShell execution remain in the Windows data layer, while shared code receives only `CdTrack` models.
 
-Audio extraction is isolated behind `CdRippingService`. The Windows implementation invokes external `ffmpeg.exe` with the CD drive, track number, and FLAC/MP3 codec, while `-n` and a preflight existence check prevent overwrites. Missing ffmpeg and process failures are recoverable errors.
+Audio extraction is isolated behind `CdRippingService`. The Windows implementation invokes external `ffmpeg.exe` with the CD drive, track number, and FLAC/MP3 codec, while `-n` and a preflight existence check prevent overwrites. `CdRippingCancellationToken` can stop the active process. Missing ffmpeg and process failures are recoverable errors.
