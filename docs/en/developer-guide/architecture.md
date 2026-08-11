@@ -36,7 +36,7 @@ SMB connectivity is accessed through the `SmbService` abstraction. Host, share, 
 
 Disconnected shares, authentication failures, and missing files are recoverable errors and must not crash the UI or the whole service layer.
 
-CD detection and ripping are Windows-specific. Android provides local directory or SMB library access and playback. Windows-only CD processing must not be mixed directly into shared domain code.
+CD detection and ripping are Windows-specific. `DefaultWindowsCapabilities` gates the platform behavior; Android hides the CD import menu and shows an explanatory page if the route is opened directly. Android provides local directory or SMB library access and playback. Windows-only CD processing must not be mixed directly into shared domain code.
 
 CD output plans are created by `CdImportPlanner`. It validates the MusicBrainz release's total track count against the physical CD before mapping the selected subset, derives FLAC/MP3 filenames and tag candidates, and refuses existing target paths before any file is written. Drive reading and encoding are invoked through a Windows-specific service.
 
