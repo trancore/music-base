@@ -3,6 +3,7 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  audio_decoder
   file_selector_windows
   flutter_secure_storage_windows
   just_audio_windows

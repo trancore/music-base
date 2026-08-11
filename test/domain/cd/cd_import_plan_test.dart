@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 
 import 'package:music_base/domain/cd/cd_import_plan.dart';
 import 'package:music_base/domain/metadata/musicbrainz_release.dart';
@@ -32,11 +33,11 @@ void main() {
     expect(plan.tracks, hasLength(2));
     expect(
       plan.tracks.first.targetPath,
-      '/Music/Artist/Album _ Name/01 - Intro.flac',
+      p.join('/Music', 'Artist', 'Album _ Name', '01 - Intro.flac'),
     );
     expect(
       plan.tracks[1].targetPath,
-      '/Music/Artist/Album _ Name/02 - Song_ One.flac',
+      p.join('/Music', 'Artist', 'Album _ Name', '02 - Song_ One.flac'),
     );
     expect(plan.tracks[1].releaseDate, '2020');
   });
@@ -58,7 +59,9 @@ void main() {
         cdTracks: const [CdTrack(number: 1), CdTrack(number: 2)],
         outputDirectory: '/Music',
         format: CdImportFormat.mp3,
-        existingPaths: {'/Music/Artist/Album _ Name/01 - Intro.mp3'},
+        existingPaths: {
+          p.join('/Music', 'Artist', 'Album _ Name', '01 - Intro.mp3'),
+        },
       ),
       throwsA(isA<CdImportPlanningException>()),
     );
@@ -78,7 +81,7 @@ void main() {
     expect(plan.tracks.single.title, 'Song: One');
     expect(
       plan.tracks.single.targetPath,
-      '/Music/Artist/Album _ Name/02 - Song_ One.flac',
+      p.join('/Music', 'Artist', 'Album _ Name', '02 - Song_ One.flac'),
     );
   });
 

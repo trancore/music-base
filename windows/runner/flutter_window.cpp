@@ -3,6 +3,11 @@
 #include <optional>
 
 #include "flutter/generated_plugin_registrant.h"
+#include "windows_spectrum_capture.h"
+
+namespace {
+WindowsSpectrumCapture spectrum_capture;
+}
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -25,6 +30,53 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+
+  auto event_channel = std::make_unique<flutter::EventChannel<flutter::EncodableValue>>(
+      flutter_controller_->engine()->messenger(), "music_base/windows_spectrum",
+      &flutter::StandardMethodCodec::GetInstance());
+  class SpectrumStreamHandler
+      : public flutter::StreamHandler<flutter::EncodableValue> {
+   public:
+    explicit SpectrumStreamHandler(WindowsSpectrumCapture* capture)
+        : capture_(capture) {}
+
+   protected:
+    std::unique_ptr<flutter::StreamHandlerError<flutter::EncodableValue>>
+    OnListenInternal(
+        const flutter::EncodableValue* arguments,
+        std::unique_ptr<flutter::EventSink<flutter::EncodableValue>>&& events)
+        override {
+      capture_->Start(std::move(events));
+      return nullptr;
+    }
+
+    std::unique_ptr<flutter::StreamHandlerError<flutter::EncodableValue>>
+    OnCancelInternal(
+        const flutter::EncodableValue* arguments) override {
+      capture_->Stop();
+      return nullptr;
+    }
+
+   private:
+    WindowsSpectrumCapture* capture_;
+  };
+  event_channel->SetStreamHandler(
+      std::make_unique<SpectrumStreamHandler>(&spectrum_capture));
+  auto method_channel = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+      flutter_controller_->engine()->messenger(),
+      "music_base/windows_spectrum/control",
+      &flutter::StandardMethodCodec::GetInstance());
+  method_channel->SetMethodCallHandler(
+      [](const auto& call, auto result) {
+        if (call.method_name() == "start") {
+          result->Success();
+        } else if (call.method_name() == "stop") {
+          spectrum_capture.Stop();
+          result->Success();
+        } else {
+          result->NotImplemented();
+        }
+      });
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
@@ -40,6 +92,7 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  spectrum_capture.Stop();
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }

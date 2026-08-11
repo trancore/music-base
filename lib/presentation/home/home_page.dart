@@ -7,7 +7,10 @@ import '../../app/playback_providers.dart';
 import '../../app/smb_providers.dart';
 import '../../domain/library/library_search.dart';
 import '../../domain/library/library_track.dart';
+import '../../domain/playback/audio_analysis_service.dart';
 import '../../domain/playback/playback_service.dart';
+import '../../domain/playback/realtime_spectrum_service.dart';
+import '../playback/playback_visualizer.dart';
 
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
@@ -31,6 +34,8 @@ class _HomePageState extends ConsumerState<HomePage> {
     final library = ref.watch(libraryProvider);
     final sourcePath = ref.read(libraryProvider.notifier).sourcePath;
     final playback = ref.watch(playbackServiceProvider);
+    final audioAnalysis = ref.watch(audioAnalysisServiceProvider);
+    final realtimeSpectrum = ref.watch(realtimeSpectrumServiceProvider);
     final snapshot = playback.snapshot;
     final smbSource = ref.watch(smbSourceProvider).valueOrNull;
     final tracks = library.valueOrNull ?? const <LibraryTrack>[];
@@ -168,7 +173,12 @@ class _HomePageState extends ConsumerState<HomePage> {
             ),
           if (snapshot.currentTrack != null) ...[
             const SizedBox(height: 24),
-            _PlaybackControls(playback: playback, snapshot: snapshot),
+            _PlaybackControls(
+              playback: playback,
+              snapshot: snapshot,
+              audioAnalysis: audioAnalysis,
+              realtimeSpectrum: realtimeSpectrum,
+            ),
           ],
           if (snapshot.queue.isNotEmpty) ...[
             const SizedBox(height: 16),
@@ -229,10 +239,17 @@ class _TrackTile extends StatelessWidget {
 }
 
 class _PlaybackControls extends StatelessWidget {
-  const _PlaybackControls({required this.playback, required this.snapshot});
+  const _PlaybackControls({
+    required this.playback,
+    required this.snapshot,
+    required this.audioAnalysis,
+    required this.realtimeSpectrum,
+  });
 
   final PlaybackService playback;
   final PlaybackSnapshot snapshot;
+  final AudioAnalysisService audioAnalysis;
+  final RealtimeSpectrumService realtimeSpectrum;
 
   @override
   Widget build(BuildContext context) {
@@ -249,6 +266,14 @@ class _PlaybackControls extends StatelessWidget {
             Text(
               snapshot.currentTrack?.title ?? 'Playing',
               style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            const Text('Playback visualizer'),
+            const SizedBox(height: 4),
+            PlaybackVisualizer(
+              snapshot: snapshot,
+              audioAnalysis: audioAnalysis,
+              realtimeSpectrum: realtimeSpectrum,
             ),
             if (snapshot.errorMessage case final message?)
               Text(

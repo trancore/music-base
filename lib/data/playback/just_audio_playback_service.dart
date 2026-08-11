@@ -19,6 +19,9 @@ class JustAudioPlaybackService extends ChangeNotifier
       _player.positionStream.listen((position) {
         _update(position: position, duration: _player.duration);
       }),
+      _player.androidAudioSessionIdStream.listen(
+        (audioSessionId) => _update(audioSessionId: audioSessionId),
+      ),
       _player.processingStateStream.listen((state) {
         if (state == ProcessingState.completed) {
           unawaited(skipNext());
@@ -190,6 +193,7 @@ class JustAudioPlaybackService extends ChangeNotifier
     bool? isMuted,
     bool? shuffleEnabled,
     bool? repeatEnabled,
+    int? audioSessionId,
   }) {
     _snapshot = PlaybackSnapshot(
       currentTrack: _snapshot.currentTrack,
@@ -200,6 +204,7 @@ class JustAudioPlaybackService extends ChangeNotifier
       isMuted: isMuted ?? _snapshot.isMuted,
       queue: _queue,
       currentIndex: _currentIndex,
+      audioSessionId: audioSessionId ?? _snapshot.audioSessionId,
       shuffleEnabled: shuffleEnabled ?? _snapshot.shuffleEnabled,
       repeatEnabled: repeatEnabled ?? _snapshot.repeatEnabled,
       errorMessage: _snapshot.errorMessage,
@@ -216,6 +221,7 @@ class JustAudioPlaybackService extends ChangeNotifier
       isMuted: _snapshot.isMuted,
       queue: _queue,
       currentIndex: _currentIndex,
+      audioSessionId: _snapshot.audioSessionId,
       shuffleEnabled: _snapshot.shuffleEnabled,
       repeatEnabled: _snapshot.repeatEnabled,
       errorMessage: message,

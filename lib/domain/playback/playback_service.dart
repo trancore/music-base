@@ -10,6 +10,7 @@ class PlaybackSnapshot {
     this.isMuted = false,
     this.queue = const [],
     this.currentIndex = 0,
+    this.audioSessionId,
     this.shuffleEnabled = false,
     this.repeatEnabled = false,
     this.errorMessage,
@@ -23,6 +24,7 @@ class PlaybackSnapshot {
   final bool isMuted;
   final List<LibraryTrack> queue;
   final int currentIndex;
+  final int? audioSessionId;
   final bool shuffleEnabled;
   final bool repeatEnabled;
   final String? errorMessage;
