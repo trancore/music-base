@@ -20,7 +20,7 @@ The local directory scanner walks subdirectories recursively and currently treat
 
 Audio playback is accessed through the `PlaybackService` abstraction. The current implementation uses just_audio and its Windows implementation to play files by path. The UI observes service state instead of depending directly on the playback engine.
 
-The playback visualizer is a UI component driven by playback position and state from `PlaybackSnapshot`. It does not depend directly on audio data or frequency analysis, so it is shared by Windows and Android. A real spectrum analyzer should be introduced as a separate audio-analysis service boundary.
+Audio analysis is accessed through the `AudioAnalysisService` abstraction. Local tracks use `audio_decoder` to extract amplitude data, while SMB tracks and analysis failures use the playback-position fallback. The UI does not depend directly on the analysis engine. A real spectrum analyzer can be added as another implementation behind this service boundary.
 
 Playlists are persisted through the `PlaylistRepository` abstraction. The current implementation stores playlist names and source paths in SharedPreferences, then resolves those paths against the current library cache when a playlist is played. Playlist data never copies the audio files.
 

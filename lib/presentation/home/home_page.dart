@@ -7,6 +7,7 @@ import '../../app/playback_providers.dart';
 import '../../app/smb_providers.dart';
 import '../../domain/library/library_search.dart';
 import '../../domain/library/library_track.dart';
+import '../../domain/playback/audio_analysis_service.dart';
 import '../../domain/playback/playback_service.dart';
 import '../playback/playback_visualizer.dart';
 
@@ -32,6 +33,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     final library = ref.watch(libraryProvider);
     final sourcePath = ref.read(libraryProvider.notifier).sourcePath;
     final playback = ref.watch(playbackServiceProvider);
+    final audioAnalysis = ref.watch(audioAnalysisServiceProvider);
     final snapshot = playback.snapshot;
     final smbSource = ref.watch(smbSourceProvider).valueOrNull;
     final tracks = library.valueOrNull ?? const <LibraryTrack>[];
@@ -169,7 +171,11 @@ class _HomePageState extends ConsumerState<HomePage> {
             ),
           if (snapshot.currentTrack != null) ...[
             const SizedBox(height: 24),
-            _PlaybackControls(playback: playback, snapshot: snapshot),
+            _PlaybackControls(
+              playback: playback,
+              snapshot: snapshot,
+              audioAnalysis: audioAnalysis,
+            ),
           ],
           if (snapshot.queue.isNotEmpty) ...[
             const SizedBox(height: 16),
@@ -230,10 +236,15 @@ class _TrackTile extends StatelessWidget {
 }
 
 class _PlaybackControls extends StatelessWidget {
-  const _PlaybackControls({required this.playback, required this.snapshot});
+  const _PlaybackControls({
+    required this.playback,
+    required this.snapshot,
+    required this.audioAnalysis,
+  });
 
   final PlaybackService playback;
   final PlaybackSnapshot snapshot;
+  final AudioAnalysisService audioAnalysis;
 
   @override
   Widget build(BuildContext context) {
@@ -254,7 +265,10 @@ class _PlaybackControls extends StatelessWidget {
             const SizedBox(height: 8),
             const Text('Playback visualizer'),
             const SizedBox(height: 4),
-            PlaybackVisualizer(snapshot: snapshot),
+            PlaybackVisualizer(
+              snapshot: snapshot,
+              audioAnalysis: audioAnalysis,
+            ),
             if (snapshot.errorMessage case final message?)
               Text(
                 message,
