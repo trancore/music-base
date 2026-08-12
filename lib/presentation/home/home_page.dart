@@ -8,6 +8,7 @@ import '../../app/smb_providers.dart';
 import '../../domain/library/library_track.dart';
 import '../../domain/playback/audio_analysis_service.dart';
 import '../../domain/playback/playback_service.dart';
+import '../../domain/playback/realtime_spectrum_service.dart';
 import '../playback/playback_visualizer.dart';
 
 class HomePage extends ConsumerWidget {
@@ -22,6 +23,7 @@ class HomePage extends ConsumerWidget {
     final sourcePath = ref.read(libraryProvider.notifier).sourcePath;
     final playback = ref.watch(playbackServiceProvider);
     final audioAnalysis = ref.watch(audioAnalysisServiceProvider);
+    final realtimeSpectrum = ref.watch(realtimeSpectrumServiceProvider);
     final snapshot = playback.snapshot;
     final smbSource = ref.watch(smbSourceProvider).valueOrNull;
     return Scaffold(
@@ -163,6 +165,7 @@ class HomePage extends ConsumerWidget {
               playback: playback,
               snapshot: snapshot,
               audioAnalysis: audioAnalysis,
+              realtimeSpectrum: realtimeSpectrum,
             ),
           ],
           if (snapshot.queue.isNotEmpty) ...[
@@ -228,11 +231,13 @@ class _PlaybackControls extends StatelessWidget {
     required this.playback,
     required this.snapshot,
     required this.audioAnalysis,
+    required this.realtimeSpectrum,
   });
 
   final PlaybackService playback;
   final PlaybackSnapshot snapshot;
   final AudioAnalysisService audioAnalysis;
+  final RealtimeSpectrumService realtimeSpectrum;
 
   @override
   Widget build(BuildContext context) {
@@ -256,6 +261,7 @@ class _PlaybackControls extends StatelessWidget {
             PlaybackVisualizer(
               snapshot: snapshot,
               audioAnalysis: audioAnalysis,
+              realtimeSpectrum: realtimeSpectrum,
             ),
             if (snapshot.errorMessage case final message?)
               Text(

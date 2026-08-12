@@ -1,19 +1,23 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
 import '../../domain/playback/playback_service.dart';
 import '../../domain/playback/audio_analysis_service.dart';
+import '../../domain/playback/realtime_spectrum_service.dart';
 
 class PlaybackVisualizer extends StatefulWidget {
   const PlaybackVisualizer({
     required this.snapshot,
     required this.audioAnalysis,
+    required this.realtimeSpectrum,
     super.key,
   });
 
   final PlaybackSnapshot snapshot;
   final AudioAnalysisService audioAnalysis;
+  final RealtimeSpectrumService realtimeSpectrum;
 
   @override
   State<PlaybackVisualizer> createState() => _PlaybackVisualizerState();
@@ -22,7 +26,10 @@ class PlaybackVisualizer extends StatefulWidget {
 class _PlaybackVisualizerState extends State<PlaybackVisualizer>
     with SingleTickerProviderStateMixin {
   List<double>? _waveform;
+  List<double>? _spectrum;
   String? _sourcePath;
+  int? _sessionId;
+  StreamSubscription<List<double>>? _spectrumSubscription;
 
   late final AnimationController _controller = AnimationController(
     vsync: this,
@@ -30,14 +37,27 @@ class _PlaybackVisualizerState extends State<PlaybackVisualizer>
   )..repeat();
 
   @override
+  void initState() {
+    super.initState();
+    _spectrumSubscription = widget.realtimeSpectrum.spectrumStream.listen((
+      spectrum,
+    ) {
+      if (mounted) setState(() => _spectrum = spectrum);
+    });
+  }
+
+  @override
   void dispose() {
     _controller.dispose();
+    _spectrumSubscription?.cancel();
+    unawaited(widget.realtimeSpectrum.stop());
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     _loadWaveformIfNeeded();
+    _syncRealtimeSpectrum();
     final colorScheme = Theme.of(context).colorScheme;
     return AnimatedBuilder(
       animation: _controller,
@@ -49,12 +69,20 @@ class _PlaybackVisualizerState extends State<PlaybackVisualizer>
             progress: _progress,
             phase: widget.snapshot.isPlaying ? _controller.value : 0,
             waveform: _waveform,
+            spectrum: _spectrum,
             activeColor: colorScheme.primary,
             inactiveColor: colorScheme.surfaceContainerHighest,
           ),
         ),
       ),
     );
+  }
+
+  void _syncRealtimeSpectrum() {
+    final sessionId = widget.snapshot.audioSessionId;
+    if (sessionId == null || sessionId == _sessionId) return;
+    _sessionId = sessionId;
+    unawaited(widget.realtimeSpectrum.start(audioSessionId: sessionId));
   }
 
   void _loadWaveformIfNeeded() {
@@ -85,6 +113,7 @@ class _VisualizerPainter extends CustomPainter {
     required this.progress,
     required this.phase,
     required this.waveform,
+    required this.spectrum,
     required this.activeColor,
     required this.inactiveColor,
   });
@@ -92,6 +121,7 @@ class _VisualizerPainter extends CustomPainter {
   final double progress;
   final double phase;
   final List<double>? waveform;
+  final List<double>? spectrum;
   final Color activeColor;
   final Color inactiveColor;
 
@@ -106,7 +136,9 @@ class _VisualizerPainter extends CustomPainter {
 
     for (var index = 0; index < barCount; index++) {
       final fallback = 0.3 + (math.sin(index * 0.31).abs() * 0.7);
-      final amplitude = waveform == null
+      final amplitude = spectrum != null && spectrum!.isNotEmpty
+          ? spectrum![index % spectrum!.length].clamp(0.08, 1.0)
+          : waveform == null
           ? (0.18 + math.sin(index * 0.85 + phase * math.pi * 2).abs() * 0.2) *
                 fallback
           : waveform![index % waveform!.length].clamp(0.08, 1.0);
@@ -128,6 +160,7 @@ class _VisualizerPainter extends CustomPainter {
       progress != oldDelegate.progress ||
       phase != oldDelegate.phase ||
       waveform != oldDelegate.waveform ||
+      spectrum != oldDelegate.spectrum ||
       activeColor != oldDelegate.activeColor ||
       inactiveColor != oldDelegate.inactiveColor;
 }

@@ -4,6 +4,8 @@ Select a FLAC or MP3 file from the library to play it. In addition to local file
 
 Use “Play library” to add the whole library to the playback queue. The queue supports previous/next navigation, shuffle, and repeat. On the Playlists screen, save the scanned library as a named playlist and play or delete it later. Playback errors are shown in the UI so another track can be selected without closing the app. Playback controls display waveform data extracted from local audio files. SMB tracks and files that cannot be analyzed use a playback-position fallback. This is waveform visualization, not a real-time frequency spectrum analyzer.
 
+On Android, a real-time spectrum view can use FFT data captured from the playback session. Devices or sessions that do not support capture fall back to waveform or playback-position visualization. Windows currently uses waveform or playback-position visualization.
+
 The playback queue is shown below the controls while tracks are queued. Select a track in the list to start playback from that position.
 
 On Android, playback continues in the background and exposes play/pause, previous, and next controls through the media notification and lock screen. The Android app must be started once before those controls are available.
