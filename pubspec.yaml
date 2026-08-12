@@ -48,6 +48,7 @@ dependencies:
   just_audio_windows: ^0.2.3
   dart_smb2: ^0.1.1
   flutter_secure_storage: ^11.0.0
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:

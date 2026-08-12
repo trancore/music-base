@@ -20,6 +20,10 @@
 
 音楽再生は`PlaybackService`の抽象インターフェースを通じて利用します。現在の実装はjust_audio、Windows実装、Darwinネイティブ実装を使用し、ファイルパスを音源として再生します。UIは再生エンジンへ直接依存せず、サービスの状態を表示します。
 
+インターネットラジオは`InternetRadioStation`と`RadioStationRepository`で局情報を管理します。局情報はSharedPreferencesへ保存し、再生時に`AudioSource.uri`へ変換します。WebページURLと音声ストリームURLは同一視せず、保存前にURL形式を検証し、just_audioで接続テストを行います。
+
+Radio Browser検索は`RadioBrowserService`の境界で扱います。公式APIの`url_resolved`と`lastcheckok`を使用し、検索結果をアプリ内モデルへ変換してからUIへ渡します。APIリクエストには識別可能なUser-Agentを設定します。
+
 音声解析は`AudioAnalysisService`の抽象インターフェースで扱います。ローカル音源は`audio_decoder`を通じて振幅データを取得し、SMB音源や解析失敗時は再生位置ベースのフォールバック表示を使います。UIは解析エンジンへ直接依存しません。実スペクトル解析を追加する場合は、このサービス境界へ別の実装を追加します。
 
 周波数スペクトル計算は`calculateSpectrum`として純Dartのドメイン関数に分離しています。入力を1フレームあたり最大2048サンプル、出力を最大128バンドに制限し、Windows/AndroidのPCMアダプターから再利用できるようにしています。

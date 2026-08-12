@@ -20,6 +20,10 @@ The local directory scanner walks subdirectories recursively and currently treat
 
 Audio playback is accessed through the `PlaybackService` abstraction. The current implementation uses just_audio, its Windows implementation, and the native Darwin implementation to play files by path. The UI observes service state instead of depending directly on the playback engine.
 
+Internet radio stations are represented by `InternetRadioStation` and managed through `RadioStationRepository`. Station data is stored in SharedPreferences and converted to `AudioSource.uri` for playback. Web page URLs are not treated as stream URLs; the input is validated and tested with just_audio before saving.
+
+Radio Browser search is isolated behind `RadioBrowserService`. The implementation uses the API's `url_resolved` and `lastcheckok` fields, maps responses into app models before exposing them to the UI, and sends an identifying User-Agent with each request.
+
 Audio analysis is accessed through the `AudioAnalysisService` abstraction. Local tracks use `audio_decoder` to extract amplitude data, while SMB tracks and analysis failures use the playback-position fallback. The UI does not depend directly on the analysis engine. A real spectrum analyzer can be added as another implementation behind this service boundary.
 
 Frequency-spectrum calculation is isolated in the pure-Dart `calculateSpectrum` domain function. It bounds each input frame to 2,048 samples and the output to 128 bands so Windows and Android PCM adapters can reuse it safely.
