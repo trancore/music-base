@@ -6,4 +6,6 @@ abstract interface class MusicBrainzService {
     String? album,
     int limit = 10,
   });
+
+  Future<MusicBrainzRelease> getRelease(String id);
 }
