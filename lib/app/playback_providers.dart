@@ -7,6 +7,7 @@ import '../data/playback/smb_audio_source.dart';
 import '../data/playback/audio_decoder_analysis_service.dart';
 import '../data/playback/android_realtime_spectrum_service.dart';
 import '../data/playback/noop_realtime_spectrum_service.dart';
+import '../data/playback/windows_realtime_spectrum_service.dart';
 import '../domain/playback/audio_analysis_service.dart';
 import '../domain/playback/realtime_spectrum_service.dart';
 import 'smb_providers.dart';
@@ -30,6 +31,11 @@ final realtimeSpectrumServiceProvider = Provider<RealtimeSpectrumService>((
 ) {
   if (defaultTargetPlatform == TargetPlatform.android) {
     final service = AndroidRealtimeSpectrumService();
+    ref.onDispose(service.stop);
+    return service;
+  }
+  if (defaultTargetPlatform == TargetPlatform.windows) {
+    final service = WindowsRealtimeSpectrumService();
     ref.onDispose(service.stop);
     return service;
   }
