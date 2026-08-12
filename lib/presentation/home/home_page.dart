@@ -14,6 +14,7 @@ class HomePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(libraryProvider);
+    final visibleTracks = ref.watch(visibleLibraryTracksProvider);
     final sourcePath = ref.read(libraryProvider.notifier).sourcePath;
     final playback = ref.watch(playbackServiceProvider);
     final snapshot = playback.snapshot;
@@ -80,6 +81,18 @@ class HomePage extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
           ],
+          TextField(
+            decoration: const InputDecoration(
+              labelText: 'Search library',
+              hintText: 'Title, artist, album, or path',
+              prefixIcon: Icon(Icons.search),
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (query) {
+              ref.read(librarySearchQueryProvider.notifier).state = query;
+            },
+          ),
+          const SizedBox(height: 24),
           if (library.isLoading)
             const Center(child: CircularProgressIndicator())
           else if (library.hasError)
@@ -91,18 +104,18 @@ class HomePage extends ConsumerWidget {
                 subtitle: Text(library.error.toString()),
               ),
             )
-          else if (library.value!.isEmpty)
+          else if (visibleTracks.isEmpty)
             const Card(
               child: ListTile(
                 leading: Icon(Icons.music_off),
-                title: Text('No FLAC or MP3 files found'),
+                title: Text('No matching tracks found'),
                 subtitle: Text(
-                  'Choose a directory containing your music files.',
+                  'Choose a directory or adjust the search query.',
                 ),
               ),
             )
           else
-            ...library.value!.map(
+            ...visibleTracks.map(
               (track) => _TrackTile(
                 track: track,
                 isCurrent:
