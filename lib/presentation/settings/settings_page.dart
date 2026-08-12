@@ -185,15 +185,27 @@ class _SmbConnectionFormState extends ConsumerState<SmbConnectionForm> {
         const SizedBox(height: 16),
         Align(
           alignment: Alignment.centerLeft,
-          child: FilledButton.icon(
-            onPressed: _busy ? null : _testAndSave,
-            icon: _busy
-                ? const SizedBox.square(
-                    dimension: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.network_check),
-            label: const Text('Test connection and save'),
+          child: Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              FilledButton.icon(
+                onPressed: _busy ? null : _testAndSave,
+                icon: _busy
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.network_check),
+                label: const Text('Test connection and save'),
+              ),
+              if (source != null)
+                OutlinedButton.icon(
+                  onPressed: _busy ? null : _clearSettings,
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Clear saved SMB settings'),
+                ),
+            ],
           ),
         ),
         if (_message != null) ...[
@@ -253,5 +265,40 @@ class _SmbConnectionFormState extends ConsumerState<SmbConnectionForm> {
     _shareController.text = source.share;
     _subfolderController.text = source.subfolder;
     _usernameController.text = source.username;
+  }
+
+  Future<void> _clearSettings() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear SMB settings?'),
+        content: const Text(
+          'The saved SMB source and password will be removed from this device.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Clear'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await ref.read(smbSourceProvider.notifier).clear();
+    if (!mounted) return;
+    _hostController.clear();
+    _shareController.clear();
+    _subfolderController.clear();
+    _usernameController.clear();
+    _passwordController.clear();
+    setState(() {
+      _initialized = true;
+      _success = true;
+      _message = 'Saved SMB settings were cleared.';
+    });
   }
 }

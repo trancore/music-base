@@ -9,6 +9,8 @@ abstract interface class SmbSettingsRepository {
   Future<String?> loadPassword();
 
   Future<void> save(SmbSource source, String password);
+
+  Future<void> clear();
 }
 
 class SharedPreferencesSmbSettingsRepository implements SmbSettingsRepository {
@@ -50,5 +52,14 @@ class SharedPreferencesSmbSettingsRepository implements SmbSettingsRepository {
     await preferences.setString(_subfolderKey, source.subfolder);
     await preferences.setString(_usernameKey, source.username);
     await secureStorage.write(key: _passwordKey, value: password);
+  }
+
+  @override
+  Future<void> clear() async {
+    await preferences.remove(_hostKey);
+    await preferences.remove(_shareKey);
+    await preferences.remove(_subfolderKey);
+    await preferences.remove(_usernameKey);
+    await secureStorage.delete(key: _passwordKey);
   }
 }
