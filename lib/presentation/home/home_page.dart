@@ -1,16 +1,11 @@
-import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/library_providers.dart';
 import '../../app/playback_providers.dart';
-import '../../app/smb_providers.dart';
 import '../../domain/library/library_search.dart';
 import '../../domain/library/library_track.dart';
-import '../../domain/playback/audio_analysis_service.dart';
 import '../../domain/playback/playback_service.dart';
-import '../../domain/playback/realtime_spectrum_service.dart';
-import '../playback/playback_visualizer.dart';
 
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
@@ -22,6 +17,8 @@ class HomePage extends ConsumerStatefulWidget {
 class _HomePageState extends ConsumerState<HomePage> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
+  int _sortColumn = 0;
+  bool _sortAscending = true;
 
   @override
   void dispose() {
@@ -32,334 +29,388 @@ class _HomePageState extends ConsumerState<HomePage> {
   @override
   Widget build(BuildContext context) {
     final library = ref.watch(libraryProvider);
-    final sourcePath = ref.read(libraryProvider.notifier).sourcePath;
     final playback = ref.watch(playbackServiceProvider);
-    final audioAnalysis = ref.watch(audioAnalysisServiceProvider);
-    final realtimeSpectrum = ref.watch(realtimeSpectrumServiceProvider);
     final snapshot = playback.snapshot;
-    final smbSource = ref.watch(smbSourceProvider).valueOrNull;
     final tracks = library.valueOrNull ?? const <LibraryTrack>[];
-    final filteredTracks = filterLibraryTracks(tracks, _searchQuery);
+    final filteredTracks = _sortedTracks(
+      filterLibraryTracks(tracks, _searchQuery),
+      _sortColumn,
+      _sortAscending,
+    );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Music Base')),
-      body: ListView(
-        padding: const EdgeInsets.all(24),
-        children: [
-          Text(
-            'Music library',
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Local and SMB library playback is available on Windows, macOS, and Android.',
-          ),
-          const SizedBox(height: 24),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.folder_outlined),
-              title: const Text('Library source'),
-              subtitle: Text(sourcePath ?? 'No local directory configured.'),
-              trailing: FilledButton.icon(
-                onPressed: library.isLoading
-                    ? null
-                    : () async {
-                        final selectedPath = await getDirectoryPath();
-                        if (selectedPath != null && context.mounted) {
-                          await ref
-                              .read(libraryProvider.notifier)
-                              .scanDirectory(selectedPath);
-                        }
-                      },
-                icon: const Icon(Icons.folder_open),
-                label: const Text('Choose'),
-              ),
-            ),
-          ),
-          if (smbSource != null) ...[
-            const SizedBox(height: 12),
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.cloud_outlined),
-                title: const Text('SMB library'),
-                subtitle: Text('${smbSource.host}/${smbSource.share}'),
-                trailing: FilledButton.icon(
-                  onPressed: library.isLoading
-                      ? null
-                      : () => ref.read(libraryProvider.notifier).scanSmb(),
-                  icon: const Icon(Icons.sync),
-                  label: const Text('Scan'),
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: 24),
-          if (filteredTracks.isNotEmpty) ...[
-            FilledButton.icon(
-              onPressed: () => playback.playQueue(filteredTracks),
-              icon: const Icon(Icons.playlist_play),
-              label: const Text('Play library'),
-            ),
-            const SizedBox(height: 12),
-          ],
-          TextField(
-            controller: _searchController,
-            decoration: InputDecoration(
-              labelText: 'Search library',
-              hintText: 'Title, artist, album, or file path',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: _searchQuery.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: 'Clear search',
-                      onPressed: () {
-                        _searchController.clear();
-                        setState(() => _searchQuery = '');
-                      },
-                      icon: const Icon(Icons.clear),
-                    ),
-            ),
-            onChanged: (value) => setState(() => _searchQuery = value),
-          ),
-          const SizedBox(height: 12),
-          if (library.isLoading)
-            const Center(child: CircularProgressIndicator())
-          else if (library.hasError)
-            Card(
-              color: Theme.of(context).colorScheme.errorContainer,
-              child: ListTile(
-                leading: const Icon(Icons.error_outline),
-                title: const Text('Library scan failed'),
-                subtitle: Text(library.error.toString()),
-                trailing: TextButton(
-                  onPressed: () => ref.read(libraryProvider.notifier).rescan(),
-                  child: const Text('Retry'),
-                ),
-              ),
-            )
-          else if (tracks.isEmpty)
-            const Card(
-              child: ListTile(
-                leading: Icon(Icons.music_off),
-                title: Text('No FLAC or MP3 files found'),
-                subtitle: Text(
-                  'Choose a directory containing your music files.',
-                ),
-              ),
-            )
-          else if (filteredTracks.isEmpty)
-            const Card(
-              child: ListTile(
-                leading: Icon(Icons.search_off),
-                title: Text('No matching tracks'),
-                subtitle: Text('Try a different search term.'),
-              ),
-            )
-          else
-            ...filteredTracks.map(
-              (track) => _TrackTile(
-                track: track,
-                isCurrent:
-                    snapshot.currentTrack?.sourcePath == track.sourcePath,
-                isPlaying: snapshot.isPlaying,
-                onPlay: () async {
-                  if (snapshot.currentTrack?.sourcePath == track.sourcePath &&
-                      snapshot.isPlaying) {
-                    await playback.pause();
-                  } else if (snapshot.currentTrack?.sourcePath ==
-                      track.sourcePath) {
-                    await playback.resume();
-                  } else {
-                    await playback.playTrack(track);
-                  }
-                },
-              ),
-            ),
-          if (snapshot.currentTrack != null) ...[
-            const SizedBox(height: 24),
-            _PlaybackControls(
-              playback: playback,
-              snapshot: snapshot,
-              audioAnalysis: audioAnalysis,
-              realtimeSpectrum: realtimeSpectrum,
-            ),
-          ],
-          if (snapshot.queue.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            _QueuePanel(playback: playback, snapshot: snapshot),
-          ],
-        ],
+      appBar: AppBar(
+        title: MediaQuery.sizeOf(context).width < 700
+            ? const Text('Music Base')
+            : const SizedBox.shrink(),
       ),
-    );
-  }
-}
-
-class _TrackTile extends StatelessWidget {
-  const _TrackTile({
-    required this.track,
-    required this.isCurrent,
-    required this.isPlaying,
-    required this.onPlay,
-  });
-
-  final LibraryTrack track;
-  final bool isCurrent;
-  final bool isPlaying;
-  final VoidCallback onPlay;
-
-  @override
-  Widget build(BuildContext context) {
-    final metadata = [
-      track.artist,
-      track.album,
-    ].whereType<String>().where((value) => value.trim().isNotEmpty).join(' · ');
-
-    return ListTile(
-      leading: track.artwork == null
-          ? Icon(isCurrent ? Icons.graphic_eq : Icons.music_note)
-          : Image.memory(
-              track.artwork!,
-              width: 48,
-              height: 48,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) =>
-                  Icon(isCurrent ? Icons.graphic_eq : Icons.music_note),
-            ),
-      title: Text(track.title ?? track.sourcePath),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (metadata.isNotEmpty) Text(metadata),
-          Text(track.sourcePath, maxLines: 1, overflow: TextOverflow.ellipsis),
-        ],
-      ),
-      trailing: IconButton(
-        tooltip: isCurrent && isPlaying ? 'Pause' : 'Play',
-        onPressed: onPlay,
-        icon: Icon(isCurrent && isPlaying ? Icons.pause : Icons.play_arrow),
-      ),
-    );
-  }
-}
-
-class _PlaybackControls extends StatelessWidget {
-  const _PlaybackControls({
-    required this.playback,
-    required this.snapshot,
-    required this.audioAnalysis,
-    required this.realtimeSpectrum,
-  });
-
-  final PlaybackService playback;
-  final PlaybackSnapshot snapshot;
-  final AudioAnalysisService audioAnalysis;
-  final RealtimeSpectrumService realtimeSpectrum;
-
-  @override
-  Widget build(BuildContext context) {
-    final duration = snapshot.duration;
-    final position = snapshot.position > duration
-        ? duration
-        : snapshot.position;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      body: LayoutBuilder(
+        builder: (context, constraints) => ListView(
+          padding: EdgeInsets.fromLTRB(
+            constraints.maxWidth < 700 ? 16 : 32,
+            constraints.maxWidth < 700 ? 8 : 28,
+            constraints.maxWidth < 700 ? 16 : 32,
+            28,
+          ),
           children: [
-            Text(
-              snapshot.currentTrack?.title ?? 'Playing',
-              style: Theme.of(context).textTheme.titleMedium,
+            _PageIntro(
+              eyebrow: 'COLLECTION',
+              title: 'Music library',
+              subtitle: 'Your local and network music, ready to play.',
             ),
-            const SizedBox(height: 8),
-            const Text('Playback visualizer'),
-            const SizedBox(height: 4),
-            PlaybackVisualizer(
-              snapshot: snapshot,
-              audioAnalysis: audioAnalysis,
-              realtimeSpectrum: realtimeSpectrum,
-            ),
-            if (snapshot.errorMessage case final message?)
-              Text(
-                message,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            Slider(
-              value: duration.inMilliseconds == 0
-                  ? 0
-                  : position.inMilliseconds.toDouble(),
-              max: duration.inMilliseconds == 0
-                  ? 1
-                  : duration.inMilliseconds.toDouble(),
-              onChanged: duration.inMilliseconds == 0
-                  ? null
-                  : (value) =>
-                        playback.seek(Duration(milliseconds: value.round())),
-            ),
+            const SizedBox(height: 22),
             Row(
               children: [
-                IconButton(
-                  tooltip: 'Previous',
-                  onPressed: playback.skipPrevious,
-                  icon: const Icon(Icons.skip_previous),
-                ),
-                Text(_formatDuration(position)),
-                const Spacer(),
-                IconButton(
-                  tooltip: snapshot.isPlaying ? 'Pause' : 'Play',
-                  onPressed: snapshot.isPlaying
-                      ? playback.pause
-                      : playback.resume,
-                  icon: Icon(
-                    snapshot.isPlaying ? Icons.pause : Icons.play_arrow,
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Stop',
-                  onPressed: playback.stop,
-                  icon: const Icon(Icons.stop),
-                ),
-                IconButton(
-                  tooltip: 'Next',
-                  onPressed: playback.skipNext,
-                  icon: const Icon(Icons.skip_next),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                IconButton(
-                  tooltip: 'Shuffle',
-                  onPressed: playback.toggleShuffle,
-                  color: snapshot.shuffleEnabled
-                      ? Theme.of(context).colorScheme.primary
-                      : null,
-                  icon: const Icon(Icons.shuffle),
-                ),
-                IconButton(
-                  tooltip: 'Repeat',
-                  onPressed: playback.toggleRepeat,
-                  color: snapshot.repeatEnabled
-                      ? Theme.of(context).colorScheme.primary
-                      : null,
-                  icon: const Icon(Icons.repeat),
-                ),
-                IconButton(
-                  tooltip: snapshot.isMuted ? 'Unmute' : 'Mute',
-                  onPressed: playback.toggleMute,
-                  icon: Icon(
-                    snapshot.isMuted ? Icons.volume_off : Icons.volume_up,
-                  ),
-                ),
                 Expanded(
-                  child: Slider(
-                    value: snapshot.volume,
-                    onChanged: snapshot.isMuted ? null : playback.setVolume,
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Search title, artist, album...',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _searchQuery.isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip: 'Clear search',
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _searchQuery = '');
+                              },
+                              icon: const Icon(Icons.clear),
+                            ),
+                    ),
+                    onChanged: (value) => setState(() => _searchQuery = value),
                   ),
                 ),
+                if (filteredTracks.isNotEmpty) ...[
+                  const SizedBox(width: 12),
+                  FilledButton.icon(
+                    onPressed: () => playback.playQueue(filteredTracks),
+                    icon: const Icon(Icons.play_arrow),
+                    label: const Text('Play all'),
+                  ),
+                ],
               ],
             ),
+            const SizedBox(height: 12),
+            if (library.isLoading)
+              const Center(child: CircularProgressIndicator())
+            else if (library.hasError)
+              Card(
+                color: Theme.of(context).colorScheme.errorContainer,
+                child: ListTile(
+                  leading: const Icon(Icons.error_outline),
+                  title: const Text('Library scan failed'),
+                  subtitle: Text(library.error.toString()),
+                  trailing: TextButton(
+                    onPressed: () =>
+                        ref.read(libraryProvider.notifier).rescan(),
+                    child: const Text('Retry'),
+                  ),
+                ),
+              )
+            else if (tracks.isEmpty)
+              const Card(
+                child: ListTile(
+                  leading: Icon(Icons.music_off),
+                  title: Text('No FLAC or MP3 files found'),
+                  subtitle: Text(
+                    'Choose a directory containing your music files.',
+                  ),
+                ),
+              )
+            else if (filteredTracks.isEmpty)
+              const Card(
+                child: ListTile(
+                  leading: Icon(Icons.search_off),
+                  title: Text('No matching tracks'),
+                  subtitle: Text('Try a different search term.'),
+                ),
+              )
+            else
+              _TrackTable(
+                tracks: filteredTracks,
+                currentPath: snapshot.currentTrack?.sourcePath,
+                availableWidth: constraints.maxWidth,
+                sortColumn: _sortColumn,
+                sortAscending: _sortAscending,
+                onSort: (column) {
+                  setState(() {
+                    if (_sortColumn == column) {
+                      _sortAscending = !_sortAscending;
+                    } else {
+                      _sortColumn = column;
+                      _sortAscending = true;
+                    }
+                  });
+                },
+                onDoubleTap: playback.playTrack,
+              ),
+            if (snapshot.queue.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _QueuePanel(playback: playback, snapshot: snapshot),
+            ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PageIntro extends StatelessWidget {
+  const _PageIntro({
+    required this.eyebrow,
+    required this.title,
+    required this.subtitle,
+  });
+  final String eyebrow;
+  final String title;
+  final String subtitle;
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        eyebrow,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          letterSpacing: 1.6,
+          fontWeight: FontWeight.w800,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      ),
+      const SizedBox(height: 7),
+      Text(
+        title,
+        style: Theme.of(
+          context,
+        ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800),
+      ),
+      const SizedBox(height: 5),
+      Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
+    ],
+  );
+}
+
+List<LibraryTrack> _sortedTracks(
+  List<LibraryTrack> tracks,
+  int column,
+  bool ascending,
+) {
+  final sorted = [...tracks];
+  String value(LibraryTrack track) => switch (column) {
+    0 => track.title ?? track.sourcePath,
+    1 => track.artist ?? '',
+    2 => track.album ?? '',
+    _ => track.sourcePath,
+  };
+  sorted.sort((a, b) {
+    final result = value(a).toLowerCase().compareTo(value(b).toLowerCase());
+    return ascending ? result : -result;
+  });
+  return sorted;
+}
+
+class _TrackTable extends StatelessWidget {
+  const _TrackTable({
+    required this.tracks,
+    required this.currentPath,
+    required this.availableWidth,
+    required this.sortColumn,
+    required this.sortAscending,
+    required this.onSort,
+    required this.onDoubleTap,
+  });
+
+  final List<LibraryTrack> tracks;
+  final String? currentPath;
+  final double availableWidth;
+  final int sortColumn;
+  final bool sortAscending;
+  final ValueChanged<int> onSort;
+  final ValueChanged<LibraryTrack> onDoubleTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final borderColor = Theme.of(context).dividerColor;
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SizedBox(
+          width: availableWidth > 860 ? availableWidth : 860,
+          child: Table(
+            columnWidths: const {
+              0: FixedColumnWidth(64),
+              1: FlexColumnWidth(2.4),
+              2: FlexColumnWidth(1.5),
+              3: FlexColumnWidth(1.5),
+              4: FlexColumnWidth(2.2),
+            },
+            border: TableBorder(
+              horizontalInside: BorderSide(color: borderColor),
+            ),
+            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+            children: [
+              TableRow(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                ),
+                children: [
+                  const _TableHeader(label: '#'),
+                  _TableHeader(
+                    label: 'Title',
+                    onTap: () => onSort(0),
+                    sorted: sortColumn == 0,
+                    ascending: sortAscending,
+                  ),
+                  _TableHeader(
+                    label: 'Artist',
+                    onTap: () => onSort(1),
+                    sorted: sortColumn == 1,
+                    ascending: sortAscending,
+                  ),
+                  _TableHeader(
+                    label: 'Album',
+                    onTap: () => onSort(2),
+                    sorted: sortColumn == 2,
+                    ascending: sortAscending,
+                  ),
+                  _TableHeader(
+                    label: 'Source',
+                    onTap: () => onSort(3),
+                    sorted: sortColumn == 3,
+                    ascending: sortAscending,
+                  ),
+                ],
+              ),
+              for (var index = 0; index < tracks.length; index++)
+                _trackRow(
+                  context,
+                  tracks[index],
+                  index,
+                  currentPath == tracks[index].sourcePath,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  TableRow _trackRow(
+    BuildContext context,
+    LibraryTrack track,
+    int index,
+    bool isCurrent,
+  ) {
+    final rowColor = isCurrent
+        ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.12)
+        : null;
+    Widget cell(Widget child) => GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onDoubleTap: () => onDoubleTap(track),
+      child: SizedBox(
+        height: 58,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Align(alignment: Alignment.centerLeft, child: child),
+        ),
+      ),
+    );
+    return TableRow(
+      decoration: BoxDecoration(color: rowColor),
+      children: [
+        cell(
+          SizedBox.square(
+            dimension: 38,
+            child: track.artwork == null
+                ? Icon(isCurrent ? Icons.graphic_eq : Icons.music_note_outlined)
+                : ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: Image.memory(
+                      track.artwork!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) =>
+                          const Icon(Icons.music_note_outlined),
+                    ),
+                  ),
+          ),
+        ),
+        cell(
+          Text(
+            track.title ?? track.sourcePath,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+        ),
+        cell(
+          Text(
+            track.artist ?? '—',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        cell(
+          Text(
+            track.album ?? '—',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        cell(
+          Text(
+            track.sourcePath,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TableHeader extends StatelessWidget {
+  const _TableHeader({
+    required this.label,
+    this.onTap,
+    this.sorted = false,
+    this.ascending = true,
+  });
+  final String label;
+  final VoidCallback? onTap;
+  final bool sorted;
+  final bool ascending;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: SizedBox(
+        height: 44,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              if (onTap != null)
+                Icon(
+                  sorted && !ascending
+                      ? Icons.arrow_downward
+                      : Icons.arrow_upward,
+                  size: 15,
+                  color: sorted
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).hintColor,
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -405,10 +456,4 @@ class _QueuePanel extends StatelessWidget {
       ),
     );
   }
-}
-
-String _formatDuration(Duration duration) {
-  final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
-  final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
-  return '${duration.inHours > 0 ? '${duration.inHours}:' : ''}$minutes:$seconds';
 }

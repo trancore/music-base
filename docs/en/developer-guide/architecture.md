@@ -1,6 +1,6 @@
 # Architecture
 
-Keep UI, state management, domain logic, data access, and platform-specific code separated. The initial implementation uses Riverpod for state management and dependency injection, and go_router for navigation.
+Keep UI, state management, domain logic, data access, and platform-specific code separated. The initial implementation uses Riverpod for state management and dependency injection, and go_router for navigation. The app shell uses a desktop sidebar and a top-fixed playback dock on wider screens, and a top-fixed playback dock with bottom navigation below 700px. Routes share a short fade-and-horizontal-slide transition.
 
 ## Directory structure
 
@@ -38,7 +38,7 @@ Disconnected shares, authentication failures, and missing files are recoverable 
 
 CD detection and ripping are Windows-specific. `DefaultWindowsCapabilities` gates the platform behavior; Android and macOS hide the CD import menu and show an explanatory page if the route is opened directly. Windows-only CD processing must not be mixed directly into shared domain code.
 
-On macOS, local directory access is maintained through a security-scoped bookmark stored alongside the configured path. The Runner requests user-selected read/write and network-client Sandbox entitlements, while SMB credentials remain in the platform secure credential store.
+On macOS, local directory access is maintained through a security-scoped bookmark stored alongside the configured path. When the user explicitly selects a new folder in the picker, the new bookmark is saved before scanning; rescans validate the saved bookmark against the configured path. The Runner requests user-selected read/write and network-client Sandbox entitlements, while SMB credentials remain in the platform secure credential store.
 
 CD output plans are created by `CdImportPlanner`. It validates the MusicBrainz release's total track count against the physical CD before mapping the selected subset, derives FLAC/MP3 filenames and tag candidates, and refuses existing target paths before any file is written. Drive reading and encoding are invoked through a Windows-specific service.
 

@@ -57,6 +57,16 @@ class LibraryNotifier extends AsyncNotifier<List<LibraryTrack>> {
     // The UI supplies the platform picker result through scanDirectory.
   }
 
+  /// Starts a scan for a directory explicitly selected by the user.
+  ///
+  /// On macOS the picker grants access to the selected directory. Persisting
+  /// that new security-scoped bookmark before scanning is important when the
+  /// user changes from a parent directory to one of its children.
+  Future<void> selectDirectory(String path) async {
+    await _repository.saveSourcePath(path);
+    await scanDirectory(path);
+  }
+
   Future<void> scanDirectory(String path) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
