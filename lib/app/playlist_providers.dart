@@ -40,6 +40,24 @@ class PlaylistNotifier extends AsyncNotifier<List<Playlist>> {
     state = AsyncData(await _repository.loadAll());
   }
 
+  Future<void> updatePlaylist(
+    String id,
+    String name,
+    List<LibraryTrack> tracks,
+  ) async {
+    final trimmedName = name.trim();
+    if (trimmedName.isEmpty || tracks.isEmpty) return;
+    final playlist = Playlist(
+      id: id,
+      name: trimmedName,
+      trackPaths: tracks
+          .map((track) => track.sourcePath)
+          .toList(growable: false),
+    );
+    await _repository.save(playlist);
+    state = AsyncData(await _repository.loadAll());
+  }
+
   Future<void> delete(String id) async {
     await _repository.delete(id);
     state = AsyncData(await _repository.loadAll());
