@@ -9,13 +9,13 @@ List<LibraryTrack> filterLibraryTracks(
 
   return tracks
       .where((track) {
-        final searchableText = [
+        final searchable = [
           track.title,
           track.artist,
           track.album,
           track.sourcePath,
         ].whereType<String>().join(' ').toLowerCase();
-        return searchableText.contains(normalizedQuery);
+        return searchable.contains(normalizedQuery);
       })
       .toList(growable: false);
 }
