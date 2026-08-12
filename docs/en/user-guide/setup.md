@@ -17,4 +17,4 @@ If the SMB share requires authentication, enter the SMB username and password. T
 
 ## Android
 
-The Android app is planned to use the same SMB settings model. The current SMB feature provides connection testing, settings storage, library scanning, and direct playback from SMB. CD ripping is a later Windows-only feature.
+The Android runner is now included and uses the same Flutter application shell. The current SMB feature provides connection testing, settings storage, library scanning, and direct playback from SMB. CD ripping remains a Windows-only feature.

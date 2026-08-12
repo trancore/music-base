@@ -43,6 +43,7 @@ dependencies:
   audio_metadata_reader: ^1.7.1
   path: ^1.9.1
   just_audio: ^0.10.6
+  just_audio_background: ^0.0.1-beta.17
   just_audio_windows: ^0.2.3
   dart_smb2: ^0.1.1
   flutter_secure_storage: ^11.0.0
