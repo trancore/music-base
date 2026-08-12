@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/musicbrainz_providers.dart';
+import '../../domain/cd/cd_import_plan.dart';
 import '../../domain/metadata/musicbrainz_release.dart';
 
 class MusicBrainzSearchPage extends ConsumerStatefulWidget {
@@ -232,12 +233,145 @@ class _ReleaseDetailsDialog extends StatelessWidget {
         ),
       ),
       actions: [
+        if (release.media.expand((medium) => medium.tracks).isNotEmpty)
+          FilledButton.icon(
+            onPressed: () => _showImportPlan(context, release),
+            icon: const Icon(Icons.album),
+            label: const Text('Prepare CD import'),
+          ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Close'),
         ),
       ],
     );
+  }
+}
+
+Future<void> _showImportPlan(
+  BuildContext context,
+  MusicBrainzRelease release,
+) async {
+  await showDialog<void>(
+    context: context,
+    builder: (context) => _CdImportPlanDialog(release: release),
+  );
+}
+
+class _CdImportPlanDialog extends StatefulWidget {
+  const _CdImportPlanDialog({required this.release});
+
+  final MusicBrainzRelease release;
+
+  @override
+  State<_CdImportPlanDialog> createState() => _CdImportPlanDialogState();
+}
+
+class _CdImportPlanDialogState extends State<_CdImportPlanDialog> {
+  final _outputController = TextEditingController();
+  CdImportFormat _format = CdImportFormat.flac;
+  CdImportPlan? _plan;
+  String? _error;
+
+  @override
+  void dispose() {
+    _outputController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Prepare CD import'),
+      content: SizedBox(
+        width: 560,
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const Text(
+              'Preview an import plan using the selected release track list. '
+              'The CD drive and encoder are not accessed yet.',
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _outputController,
+              decoration: const InputDecoration(
+                labelText: 'Output directory',
+                hintText: r'D:\Music',
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<CdImportFormat>(
+              initialValue: _format,
+              decoration: const InputDecoration(labelText: 'Format'),
+              items: const [
+                DropdownMenuItem(
+                  value: CdImportFormat.flac,
+                  child: Text('FLAC'),
+                ),
+                DropdownMenuItem(value: CdImportFormat.mp3, child: Text('MP3')),
+              ],
+              onChanged: (value) {
+                if (value != null) setState(() => _format = value);
+              },
+            ),
+            if (_error case final message?) ...[
+              const SizedBox(height: 12),
+              Text(
+                message,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+            if (_plan case final plan?) ...[
+              const SizedBox(height: 16),
+              Text('${plan.tracks.length} tracks planned.'),
+              for (final track in plan.tracks)
+                ListTile(
+                  dense: true,
+                  title: Text(track.title),
+                  subtitle: Text(track.targetPath),
+                ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+        FilledButton(
+          onPressed: _createPlan,
+          child: const Text('Create preview'),
+        ),
+      ],
+    );
+  }
+
+  void _createPlan() {
+    final metadataTracks = widget.release.media.expand(
+      (medium) => medium.tracks,
+    );
+    try {
+      final plan = const CdImportPlanner().create(
+        release: widget.release,
+        cdTracks: [
+          for (var index = 0; index < metadataTracks.length; index++)
+            CdTrack(number: index + 1),
+        ],
+        outputDirectory: _outputController.text,
+        format: _format,
+      );
+      setState(() {
+        _plan = plan;
+        _error = null;
+      });
+    } on CdImportPlanningException catch (error) {
+      setState(() {
+        _plan = null;
+        _error = error.message;
+      });
+    }
   }
 }
 
