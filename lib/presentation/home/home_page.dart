@@ -45,112 +45,138 @@ class _HomePageState extends ConsumerState<HomePage> {
             : const SizedBox.shrink(),
       ),
       body: LayoutBuilder(
-        builder: (context, constraints) => ListView(
-          padding: EdgeInsets.fromLTRB(
-            constraints.maxWidth < 700 ? 16 : 32,
-            constraints.maxWidth < 700 ? 8 : 28,
-            constraints.maxWidth < 700 ? 16 : 32,
-            28,
-          ),
-          children: [
-            _PageIntro(
-              eyebrow: 'COLLECTION',
-              title: 'Music library',
-              subtitle: 'Your local and network music, ready to play.',
-            ),
-            const SizedBox(height: 22),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Search title, artist, album...',
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: _searchQuery.isEmpty
-                          ? null
-                          : IconButton(
-                              tooltip: 'Clear search',
-                              onPressed: () {
-                                _searchController.clear();
-                                setState(() => _searchQuery = '');
-                              },
-                              icon: const Icon(Icons.clear),
-                            ),
+        builder: (context, constraints) {
+          final horizontalPadding = constraints.maxWidth < 700 ? 16.0 : 32.0;
+          final compactHeight = constraints.maxHeight < 300;
+          return Column(
+            children: [
+              if (!compactHeight)
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    horizontalPadding,
+                    constraints.maxWidth < 700 ? 8 : 28,
+                    horizontalPadding,
+                    0,
+                  ),
+                  child: _PageIntro(
+                    eyebrow: 'COLLECTION',
+                    title: 'Music library',
+                    subtitle: 'Your local and network music, ready to play.',
+                  ),
+                ),
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  horizontalPadding,
+                  compactHeight ? 8 : 22,
+                  horizontalPadding,
+                  12,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: 'Search title, artist, album...',
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: _searchQuery.isEmpty
+                              ? null
+                              : IconButton(
+                                  tooltip: 'Clear search',
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() => _searchQuery = '');
+                                  },
+                                  icon: const Icon(Icons.clear),
+                                ),
+                        ),
+                        onChanged: (value) =>
+                            setState(() => _searchQuery = value),
+                      ),
                     ),
-                    onChanged: (value) => setState(() => _searchQuery = value),
-                  ),
+                    if (filteredTracks.isNotEmpty) ...[
+                      const SizedBox(width: 12),
+                      FilledButton.icon(
+                        onPressed: () => playback.playQueue(filteredTracks),
+                        icon: const Icon(Icons.play_arrow),
+                        label: const Text('Play all'),
+                      ),
+                    ],
+                  ],
                 ),
-                if (filteredTracks.isNotEmpty) ...[
-                  const SizedBox(width: 12),
-                  FilledButton.icon(
-                    onPressed: () => playback.playQueue(filteredTracks),
-                    icon: const Icon(Icons.play_arrow),
-                    label: const Text('Play all'),
-                  ),
-                ],
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (library.isLoading)
-              const Center(child: CircularProgressIndicator())
-            else if (library.hasError)
-              Card(
-                color: Theme.of(context).colorScheme.errorContainer,
-                child: ListTile(
-                  leading: const Icon(Icons.error_outline),
-                  title: const Text('Library scan failed'),
-                  subtitle: Text(library.error.toString()),
-                  trailing: TextButton(
-                    onPressed: () =>
-                        ref.read(libraryProvider.notifier).rescan(),
-                    child: const Text('Retry'),
-                  ),
-                ),
-              )
-            else if (tracks.isEmpty)
-              const Card(
-                child: ListTile(
-                  leading: Icon(Icons.music_off),
-                  title: Text('No FLAC or MP3 files found'),
-                  subtitle: Text(
-                    'Choose a directory containing your music files.',
-                  ),
-                ),
-              )
-            else if (filteredTracks.isEmpty)
-              const Card(
-                child: ListTile(
-                  leading: Icon(Icons.search_off),
-                  title: Text('No matching tracks'),
-                  subtitle: Text('Try a different search term.'),
-                ),
-              )
-            else
-              _TrackTable(
-                tracks: filteredTracks,
-                currentPath: snapshot.currentTrack?.sourcePath,
-                availableWidth: constraints.maxWidth,
-                sortColumn: _sortColumn,
-                sortAscending: _sortAscending,
-                onSort: (column) {
-                  setState(() {
-                    if (_sortColumn == column) {
-                      _sortAscending = !_sortAscending;
-                    } else {
-                      _sortColumn = column;
-                      _sortAscending = true;
-                    }
-                  });
-                },
-                onDoubleTap: playback.playTrack,
               ),
-            if (snapshot.queue.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              _QueuePanel(playback: playback, snapshot: snapshot),
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.fromLTRB(
+                    horizontalPadding,
+                    0,
+                    horizontalPadding,
+                    28,
+                  ),
+                  children: [
+                    if (library.isLoading)
+                      const Center(child: CircularProgressIndicator())
+                    else if (library.hasError)
+                      Card(
+                        color: Theme.of(context).colorScheme.errorContainer,
+                        child: ListTile(
+                          leading: const Icon(Icons.error_outline),
+                          title: const Text('Library scan failed'),
+                          subtitle: Text(library.error.toString()),
+                          trailing: TextButton(
+                            onPressed: () =>
+                                ref.read(libraryProvider.notifier).rescan(),
+                            child: const Text('Retry'),
+                          ),
+                        ),
+                      )
+                    else if (tracks.isEmpty)
+                      const Card(
+                        child: ListTile(
+                          leading: Icon(Icons.music_off),
+                          title: Text('No FLAC or MP3 files found'),
+                          subtitle: Text(
+                            'Choose a directory containing your music files.',
+                          ),
+                        ),
+                      )
+                    else if (filteredTracks.isEmpty)
+                      const Card(
+                        child: ListTile(
+                          leading: Icon(Icons.search_off),
+                          title: Text('No matching tracks'),
+                          subtitle: Text('Try a different search term.'),
+                        ),
+                      )
+                    else
+                      _TrackTable(
+                        tracks: filteredTracks,
+                        currentPath: snapshot.currentTrack?.sourcePath,
+                        availableWidth: constraints.maxWidth,
+                        sortColumn: _sortColumn,
+                        sortAscending: _sortAscending,
+                        onSort: (column) {
+                          setState(() {
+                            if (_sortColumn == column) {
+                              _sortAscending = !_sortAscending;
+                            } else {
+                              _sortColumn = column;
+                              _sortAscending = true;
+                            }
+                          });
+                        },
+                        onDoubleTap: playback.playTrack,
+                      ),
+                    if (snapshot.queue.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      _QueuePanel(playback: playback, snapshot: snapshot),
+                    ],
+                  ],
+                ),
+              ),
             ],
-          ],
-        ),
+          );
+        },
       ),
     );
   }
