@@ -179,10 +179,21 @@ class _TrackTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final metadata = [
+      track.artist,
+      track.album,
+    ].whereType<String>().where((value) => value.trim().isNotEmpty).join(' · ');
+
     return ListTile(
       leading: Icon(isCurrent ? Icons.graphic_eq : Icons.music_note),
       title: Text(track.title ?? track.sourcePath),
-      subtitle: Text(track.sourcePath),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (metadata.isNotEmpty) Text(metadata),
+          Text(track.sourcePath, maxLines: 1, overflow: TextOverflow.ellipsis),
+        ],
+      ),
       trailing: IconButton(
         tooltip: isCurrent && isPlaying ? 'Pause' : 'Play',
         onPressed: onPlay,
