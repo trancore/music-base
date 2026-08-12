@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../presentation/home/home_page.dart';
+import '../presentation/cd/cd_drive_page.dart';
 import '../presentation/metadata/musicbrainz_search_page.dart';
 import '../presentation/playlists/playlists_page.dart';
 import '../presentation/settings/settings_page.dart';
@@ -22,6 +23,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/metadata',
             builder: (context, state) => const MusicBrainzSearchPage(),
+          ),
+          GoRoute(
+            path: '/cd',
+            builder: (context, state) => const CdDrivePage(),
           ),
           GoRoute(
             path: '/settings',
@@ -48,14 +53,16 @@ class AppShell extends StatelessWidget {
             selectedIndex: switch (location) {
               '/playlists' => 1,
               '/metadata' => 2,
-              '/settings' => 3,
+              '/cd' => 3,
+              '/settings' => 4,
               _ => 0,
             },
             onDestinationSelected: (index) {
               context.go(switch (index) {
                 1 => '/playlists',
                 2 => '/metadata',
-                3 => '/settings',
+                3 => '/cd',
+                4 => '/settings',
                 _ => '/',
               });
             },
@@ -75,6 +82,11 @@ class AppShell extends StatelessWidget {
                 icon: Icon(Icons.auto_awesome_outlined),
                 selectedIcon: Icon(Icons.auto_awesome),
                 label: Text('Metadata'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.album_outlined),
+                selectedIcon: Icon(Icons.album),
+                label: Text('CD import'),
               ),
               NavigationRailDestination(
                 icon: Icon(Icons.settings_outlined),
