@@ -7,7 +7,7 @@ class NoopRealtimeSpectrumService implements RealtimeSpectrumService {
   Stream<List<double>> get spectrumStream => const Stream.empty();
 
   @override
-  Future<void> start({required int audioSessionId}) async {}
+  Future<void> start({int? audioSessionId}) async {}
 
   @override
   Future<void> stop() async {}

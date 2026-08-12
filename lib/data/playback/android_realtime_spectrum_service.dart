@@ -20,7 +20,8 @@ class AndroidRealtimeSpectrumService implements RealtimeSpectrumService {
       );
 
   @override
-  Future<void> start({required int audioSessionId}) async {
+  Future<void> start({int? audioSessionId}) async {
+    if (audioSessionId == null) return;
     await _methods.invokeMethod<void>('start', {
       'audioSessionId': audioSessionId,
     });

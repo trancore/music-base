@@ -29,6 +29,7 @@ class _PlaybackVisualizerState extends State<PlaybackVisualizer>
   List<double>? _spectrum;
   String? _sourcePath;
   int? _sessionId;
+  bool _spectrumStarted = false;
   StreamSubscription<List<double>>? _spectrumSubscription;
 
   late final AnimationController _controller = AnimationController(
@@ -80,8 +81,9 @@ class _PlaybackVisualizerState extends State<PlaybackVisualizer>
 
   void _syncRealtimeSpectrum() {
     final sessionId = widget.snapshot.audioSessionId;
-    if (sessionId == null || sessionId == _sessionId) return;
+    if (_spectrumStarted && sessionId == _sessionId) return;
     _sessionId = sessionId;
+    _spectrumStarted = true;
     unawaited(widget.realtimeSpectrum.start(audioSessionId: sessionId));
   }
 

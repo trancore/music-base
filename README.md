@@ -2,15 +2,14 @@
 
 # Music Base
 
-Windowsを先行対象とするFlutter製ミュージックプレイヤーです。
-音源をローカルディレクトリまたはネットワーク上のSMB共有で管理し、WindowsでCDから取り込んだ音楽をAndroidからも再生できる構成を目指します。
+Windows、macOS、Androidに対応するFlutter製ミュージックプレイヤーです。
+音源をローカルディレクトリまたはネットワーク上のSMB共有で管理し、WindowsではCDからの取り込みも提供します。
 
-> 現在は仕様整理とドキュメント基盤の初期段階です。アプリ本体の実装はこれから開始します。
+> App Store向けの署名・公開設定は未対応です。macOS版は14.2以降を対象とした開発・直接配布向けです。
 
 ## 主な方針
 
-- Windows版を先行して開発する
-- Android版はWindows版の安定後に追加する
+- Windows版を先行して開発し、macOSとAndroidでもCD以外の機能を提供する
 - 音源の正本はユーザーが選択したローカルディレクトリまたはSMB共有に置く
 - 音源参照先はローカルディレクトリまたはSMB共有から選択できるようにする
 - 音源参照先はユーザーが変更・保存できるようにする
@@ -42,6 +41,14 @@ Windowsを先行対象とするFlutter製ミュージックプレイヤーです
 - テーマ変更
 - ビジュアライザとスペクトルアナライザ
 - バックグラウンド再生とメディア操作
+
+### macOS
+
+- ローカルディレクトリとSMB共有の参照
+- ライブラリ検索、再生、キュー、プレイリスト
+- MusicBrainzメタデータ、テーマ、ビジュアライザ
+- macOS 14.2以降のリアルタイムスペクトラム
+- CDリッピングは非対応
 
 CDリッピングはWindows専用機能です。
 
@@ -88,7 +95,8 @@ pnpm docs:preview
 
 - Flutter SDK
 - Windowsデスクトップ開発環境
-- Android開発環境（Android対応時）
+- macOSデスクトップ開発環境（macOS対応時）
+- Android開発環境
 - Node.js 24.19.0
 - mise
 - pnpm
@@ -109,6 +117,7 @@ dart format .
 flutter analyze
 flutter test
 flutter build windows
+flutter build macos
 ```
 
 Android対応の変更後は、必要に応じて次も実行します。
@@ -130,6 +139,7 @@ flutter build apk
 ├── lib/                      # Flutterアプリ本体
 ├── test/                     # Flutterテスト
 ├── windows/                  # Windowsランナー
+├── macos/                    # macOSランナー
 ├── mise.toml                 # Node.jsバージョン
 └── package.json              # ドキュメント用Node.js設定
 ```

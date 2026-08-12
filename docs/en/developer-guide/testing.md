@@ -7,6 +7,7 @@ dart format .
 flutter analyze
 flutter test
 flutter build windows
+flutter build macos
 pnpm docs:build
 ```
 

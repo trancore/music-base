@@ -1,10 +1,10 @@
 ---
 layout: home
 title: Music Base
-titleTemplate: Windows優先のミュージックプレイヤー
+titleTemplate: クロスプラットフォームのミュージックプレイヤー
 hero:
   name: Music Base
-  text: Windows優先のミュージックプレイヤー
+  text: クロスプラットフォームのミュージックプレイヤー
   tagline: ローカルまたはSMB上の音楽ライブラリを管理・再生します。
   actions:
     - theme: brand
