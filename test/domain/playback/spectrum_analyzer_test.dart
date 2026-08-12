@@ -26,6 +26,22 @@ void main() {
     );
   });
 
+  test('maps PCM into logarithmic dB bands', () {
+    const sampleRate = 44100;
+    const sampleCount = 2048;
+    const frequency = 440.0;
+    final samples = [
+      for (var index = 0; index < sampleCount; index++)
+        math.sin(2 * math.pi * frequency * index / sampleRate),
+    ];
+
+    final spectrum = calculateLogSpectrum(samples);
+
+    expect(spectrum, hasLength(defaultSpectrumBands));
+    expect(spectrum.reduce(math.max), greaterThan(0.7));
+    expect(spectrum.first, lessThan(spectrum.reduce(math.max)));
+  });
+
   test('bounds the work for oversized input', () {
     final spectrum = calculateSpectrum(
       List<double>.filled(maxSpectrumSamples + 1, 0.5),

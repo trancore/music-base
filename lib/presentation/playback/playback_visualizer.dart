@@ -26,7 +26,7 @@ class PlaybackVisualizer extends StatefulWidget {
 class _PlaybackVisualizerState extends State<PlaybackVisualizer>
     with SingleTickerProviderStateMixin {
   List<double>? _waveform;
-  List<double>? _spectrum;
+  List<double>? _smoothedSpectrum;
   String? _sourcePath;
   int? _sessionId;
   bool _spectrumStarted = false;
@@ -43,7 +43,19 @@ class _PlaybackVisualizerState extends State<PlaybackVisualizer>
     _spectrumSubscription = widget.realtimeSpectrum.spectrumStream.listen((
       spectrum,
     ) {
-      if (mounted) setState(() => _spectrum = spectrum);
+      if (!mounted) return;
+      final previous = _smoothedSpectrum;
+      final smoothed = [
+        for (var index = 0; index < spectrum.length; index++)
+          previous == null || previous.length != spectrum.length
+              ? spectrum[index]
+              : spectrum[index] >= previous[index]
+              ? previous[index] * 0.35 + spectrum[index] * 0.65
+              : previous[index] * 0.88 + spectrum[index] * 0.12,
+      ];
+      setState(() {
+        _smoothedSpectrum = smoothed;
+      });
     });
   }
 
@@ -70,7 +82,7 @@ class _PlaybackVisualizerState extends State<PlaybackVisualizer>
             progress: _progress,
             phase: widget.snapshot.isPlaying ? _controller.value : 0,
             waveform: _waveform,
-            spectrum: _spectrum,
+            spectrum: _smoothedSpectrum,
             activeColor: colorScheme.primary,
             accentColor: colorScheme.secondary,
             inactiveColor: colorScheme.surfaceContainerHighest,
@@ -132,8 +144,8 @@ class _VisualizerPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const barCount = 256;
-    const gap = 0.5;
+    final barCount = spectrum?.length ?? 256;
+    const gap = 1.0;
     final barWidth = (size.width - gap * (barCount - 1)) / barCount;
     final baseline = size.height - 10;
     const chartTop = 6.0;
@@ -160,10 +172,9 @@ class _VisualizerPainter extends CustomPainter {
                 fallback
           : waveform![index % waveform!.length];
       final normalizedAmplitude = rawAmplitude.clamp(0, 10).toDouble();
-      final amplitude = math
-          .pow(normalizedAmplitude, 0.2)
-          .toDouble()
-          .clamp(0, 10);
+      final amplitude = spectrum != null
+          ? normalizedAmplitude
+          : math.pow(normalizedAmplitude, 0.3).toDouble().clamp(0, 1);
       final height = (baseline - chartTop) * amplitude;
       final left = index * (barWidth + gap);
       final rect = RRect.fromRectAndRadius(
@@ -216,11 +227,7 @@ class _VisualizerPainter extends CustomPainter {
 
   double _spectrumValue(int index) {
     final values = spectrum!;
-    final position = index / (256 - 1) * (values.length - 1);
-    final lower = position.floor().clamp(0, values.length - 1);
-    final upper = position.ceil().clamp(0, values.length - 1);
-    final fraction = position - position.floor();
-    return values[lower] * (1 - fraction) + values[upper] * fraction;
+    return values[index.clamp(0, values.length - 1)];
   }
 
   @override

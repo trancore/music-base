@@ -6,12 +6,12 @@ Use “Play library” to add the whole library to the playback queue. Double-cl
 
 On Android, a real-time spectrum view can use FFT data captured from the playback session. On Windows, the app analyzes PCM data captured from the system output through WASAPI loopback. On macOS 14.2 or later, the app uses macOS system-audio capture and sends PCM frames to the same FFT analyzer. If capture permission is denied or a platform capture API is unavailable, it falls back to waveform or playback-position visualization.
 
-The playback queue is shown below the controls while tracks are queued. Select a track in the list to start playback from that position.
+On desktop, the playback queue is shown at the bottom of the sidebar while tracks are queued. Select a track in the list to start playback from that position.
 
 On Android, playback continues in the background and exposes play/pause, previous, and next controls through the media notification and lock screen. The Android app must be started once before those controls are available.
 
 ## Waveform / spectrum visualizer
 
-During playback, the visualizer displays the audio state as 32 horizontal bars. When available, it uses a precomputed waveform from the track and a live frequency spectrum captured during playback. If analysis or live capture is unavailable, it falls back to a playback-position and animation-based display. Processing stays in memory and does not create recording files.
+During playback, the visualizer displays logarithmically spaced frequency bands. On desktop, it applies a Hann window to a 2048-sample FFT, maps 20 Hz–20 kHz into 128 bands, converts magnitudes to dB, and smooths the result over time. Android FFT data is converted to the same display shape. If analysis or live capture is unavailable, it falls back to a playback-position and animation-based display. Processing stays in memory and does not create recording files.
 
 On desktop, the playback queue appears at the bottom of the sidebar. Select a queued track to start playback from that track. On mobile, playback is centered around the playback dock.

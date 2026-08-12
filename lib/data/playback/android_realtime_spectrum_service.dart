@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 
 import '../../domain/playback/realtime_spectrum_service.dart';
+import '../../domain/playback/spectrum_analyzer.dart';
 
 class AndroidRealtimeSpectrumService implements RealtimeSpectrumService {
   AndroidRealtimeSpectrumService()
@@ -14,9 +15,11 @@ class AndroidRealtimeSpectrumService implements RealtimeSpectrumService {
   @override
   Stream<List<double>> get spectrumStream =>
       _events.receiveBroadcastStream().map(
-        (event) => (event as List<dynamic>)
-            .map((value) => (value as num).toDouble().clamp(0.0, 1.0))
-            .toList(),
+        (event) => mapLinearSpectrumToLogBands(
+          (event as List<dynamic>)
+              .map((value) => (value as num).toDouble().clamp(0.0, 1.0))
+              .toList(),
+        ),
       );
 
   @override
