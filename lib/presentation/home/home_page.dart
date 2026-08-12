@@ -14,12 +14,13 @@ class HomePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(libraryProvider);
+    final tracks = library.valueOrNull ?? const <LibraryTrack>[];
     final visibleTracks = ref.watch(visibleLibraryTracksProvider);
+    final searchQuery = ref.watch(librarySearchQueryProvider);
     final sourcePath = ref.read(libraryProvider.notifier).sourcePath;
     final playback = ref.watch(playbackServiceProvider);
     final snapshot = playback.snapshot;
     final smbSource = ref.watch(smbSourceProvider).valueOrNull;
-
     return Scaffold(
       appBar: AppBar(title: const Text('Music Base')),
       body: ListView(
@@ -73,20 +74,29 @@ class HomePage extends ConsumerWidget {
             ),
           ],
           const SizedBox(height: 24),
-          if (library.valueOrNull?.isNotEmpty ?? false) ...[
+          if (visibleTracks.isNotEmpty) ...[
             FilledButton.icon(
-              onPressed: () => playback.playQueue(library.valueOrNull!),
+              onPressed: () => playback.playQueue(visibleTracks),
               icon: const Icon(Icons.playlist_play),
               label: const Text('Play library'),
             ),
             const SizedBox(height: 12),
           ],
           TextField(
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Search library',
-              hintText: 'Title, artist, album, or path',
-              prefixIcon: Icon(Icons.search),
-              border: OutlineInputBorder(),
+              hintText: 'Title, artist, album, or file path',
+              prefixIcon: const Icon(Icons.search),
+              border: const OutlineInputBorder(),
+              suffixIcon: searchQuery.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Clear search',
+                      onPressed: () =>
+                          ref.read(librarySearchQueryProvider.notifier).state =
+                              '',
+                      icon: const Icon(Icons.clear),
+                    ),
             ),
             onChanged: (query) {
               ref.read(librarySearchQueryProvider.notifier).state = query;
@@ -104,10 +114,20 @@ class HomePage extends ConsumerWidget {
                 subtitle: Text(library.error.toString()),
               ),
             )
-          else if (visibleTracks.isEmpty)
+          else if (tracks.isEmpty)
             const Card(
               child: ListTile(
                 leading: Icon(Icons.music_off),
+                title: Text('No FLAC or MP3 files found'),
+                subtitle: Text(
+                  'Choose a directory containing your music files.',
+                ),
+              ),
+            )
+          else if (visibleTracks.isEmpty)
+            const Card(
+              child: ListTile(
+                leading: Icon(Icons.search_off),
                 title: Text('No matching tracks found'),
                 subtitle: Text(
                   'Choose a directory or adjust the search query.',

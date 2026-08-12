@@ -28,4 +28,8 @@ void main() {
   test('returns all tracks for an empty query', () {
     expect(filterLibraryTracks(tracks, '  '), tracks);
   });
+
+  test('returns no tracks when there is no match', () {
+    expect(filterLibraryTracks(tracks, 'missing'), isEmpty);
+  });
 }
