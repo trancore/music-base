@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../presentation/home/home_page.dart';
+import '../presentation/playlists/playlists_page.dart';
 import '../presentation/settings/settings_page.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -13,6 +14,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state, child) => AppShell(child: child),
         routes: [
           GoRoute(path: '/', builder: (context, state) => const HomePage()),
+          GoRoute(
+            path: '/playlists',
+            builder: (context, state) => const PlaylistsPage(),
+          ),
           GoRoute(
             path: '/settings',
             builder: (context, state) => const SettingsPage(),
@@ -35,9 +40,17 @@ class AppShell extends StatelessWidget {
       body: Row(
         children: [
           NavigationRail(
-            selectedIndex: location == '/settings' ? 1 : 0,
+            selectedIndex: switch (location) {
+              '/playlists' => 1,
+              '/settings' => 2,
+              _ => 0,
+            },
             onDestinationSelected: (index) {
-              context.go(index == 1 ? '/settings' : '/');
+              context.go(switch (index) {
+                1 => '/playlists',
+                2 => '/settings',
+                _ => '/',
+              });
             },
             labelType: NavigationRailLabelType.all,
             destinations: const [
@@ -45,6 +58,11 @@ class AppShell extends StatelessWidget {
                 icon: Icon(Icons.library_music_outlined),
                 selectedIcon: Icon(Icons.library_music),
                 label: Text('Library'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.queue_music_outlined),
+                selectedIcon: Icon(Icons.queue_music),
+                label: Text('Playlists'),
               ),
               NavigationRailDestination(
                 icon: Icon(Icons.settings_outlined),
