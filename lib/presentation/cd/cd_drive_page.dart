@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -12,14 +14,26 @@ class CdDrivePage extends ConsumerStatefulWidget {
 }
 
 class _CdDrivePageState extends ConsumerState<CdDrivePage> {
+  Timer? _pollTimer;
   bool _loading = false;
   String? _error;
+  String? _statusMessage;
   List<CdDrive> _drives = const [];
 
   @override
   void initState() {
     super.initState();
     _refresh();
+    _pollTimer = Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => _refresh(silent: true),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -54,6 +68,13 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
                 subtitle: Text(message),
               ),
             ),
+          ] else if (_statusMessage case final message?) ...[
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.info_outline),
+                title: Text(message),
+              ),
+            ),
           ] else if (!_loading && _drives.isEmpty)
             const Card(
               child: ListTile(
@@ -81,17 +102,37 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
     );
   }
 
-  Future<void> _refresh() async {
+  Future<void> _refresh({bool silent = false}) async {
+    if (_loading) return;
     setState(() {
-      _loading = true;
-      _error = null;
+      _loading = !silent;
+      if (!silent) {
+        _error = null;
+        _statusMessage = null;
+      }
     });
     try {
       final drives = await ref.read(cdDriveServiceProvider).listDrives();
       if (!mounted) return;
+      final previousMedia = {
+        for (final drive in _drives) drive.driveLetter: drive.mediaLoaded,
+      };
+      final inserted = drives.where(
+        (drive) =>
+            drive.mediaLoaded && previousMedia[drive.driveLetter] == false,
+      );
+      final removed = drives.where(
+        (drive) =>
+            !drive.mediaLoaded && previousMedia[drive.driveLetter] == true,
+      );
       setState(() {
         _loading = false;
         _drives = drives;
+        if (inserted.isNotEmpty) {
+          _statusMessage = 'CD inserted in ${inserted.first.driveLetter}.';
+        } else if (removed.isNotEmpty) {
+          _statusMessage = 'CD removed from ${removed.first.driveLetter}.';
+        }
       });
     } on Exception catch (error) {
       if (!mounted) return;
