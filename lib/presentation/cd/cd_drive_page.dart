@@ -49,6 +49,7 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
   @override
   void initState() {
     super.initState();
+    if (!ref.read(windowsCapabilitiesProvider).supportsCdRipping) return;
     _refresh();
     _pollTimer = Timer.periodic(
       const Duration(seconds: 3),
@@ -67,6 +68,22 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
 
   @override
   Widget build(BuildContext context) {
+    if (!ref.watch(windowsCapabilitiesProvider).supportsCdRipping) {
+      return Scaffold(
+        appBar: AppBar(title: Text('CD import')),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'CD ripping is only available on Windows. '
+              'Use a Windows device to import tracks from an audio CD.',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+
     final selectedDrive = _selectedDrive;
     final selectedTrackNumbers = selectedDrive == null
         ? const <int>{}

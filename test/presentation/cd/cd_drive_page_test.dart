@@ -10,6 +10,7 @@ import 'package:music_base/domain/cd/cd_ripping_service.dart';
 import 'package:music_base/domain/cd/cd_track_service.dart';
 import 'package:music_base/domain/metadata/musicbrainz_release.dart';
 import 'package:music_base/domain/metadata/musicbrainz_service.dart';
+import 'package:music_base/platform/windows/windows_capabilities.dart';
 import 'package:music_base/presentation/cd/cd_drive_page.dart';
 
 void main() {
@@ -33,6 +34,9 @@ void main() {
           ),
           cdRippingServiceProvider.overrideWithValue(
             const _FakeRippingService(),
+          ),
+          windowsCapabilitiesProvider.overrideWithValue(
+            const _AlwaysWindowsCapabilities(),
           ),
           musicBrainzServiceProvider.overrideWithValue(
             const _FakeMusicBrainzService(),
@@ -74,6 +78,9 @@ void main() {
           cdRippingServiceProvider.overrideWithValue(
             const _FakeRippingService(),
           ),
+          windowsCapabilitiesProvider.overrideWithValue(
+            const _AlwaysWindowsCapabilities(),
+          ),
           musicBrainzServiceProvider.overrideWithValue(
             const _FakeMusicBrainzService(),
           ),
@@ -91,6 +98,30 @@ void main() {
 
     await tester.pumpWidget(const SizedBox());
   });
+
+  testWidgets('explains that CD ripping is unavailable off Windows', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          windowsCapabilitiesProvider.overrideWithValue(
+            const _NoCdCapabilities(),
+          ),
+        ],
+        child: const MaterialApp(home: CdDrivePage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'CD ripping is only available on Windows. '
+        'Use a Windows device to import tracks from an audio CD.',
+      ),
+      findsOneWidget,
+    );
+  });
 }
 
 class _FakeCdDriveService implements CdDriveService {
@@ -100,6 +131,20 @@ class _FakeCdDriveService implements CdDriveService {
 
   @override
   Future<List<CdDrive>> listDrives() async => drives;
+}
+
+class _AlwaysWindowsCapabilities implements WindowsCapabilities {
+  const _AlwaysWindowsCapabilities();
+
+  @override
+  bool get supportsCdRipping => true;
+}
+
+class _NoCdCapabilities implements WindowsCapabilities {
+  const _NoCdCapabilities();
+
+  @override
+  bool get supportsCdRipping => false;
 }
 
 class _FakeCdTrackService implements CdTrackService {

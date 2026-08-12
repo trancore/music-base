@@ -7,6 +7,7 @@ import '../presentation/cd/cd_drive_page.dart';
 import '../presentation/metadata/musicbrainz_search_page.dart';
 import '../presentation/playlists/playlists_page.dart';
 import '../presentation/settings/settings_page.dart';
+import 'cd_providers.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -38,62 +39,62 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
 });
 
-class AppShell extends StatelessWidget {
+class AppShell extends ConsumerWidget {
   const AppShell({required this.child, super.key});
 
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final location = GoRouterState.of(context).uri.path;
+    final supportsCdRipping = ref
+        .watch(windowsCapabilitiesProvider)
+        .supportsCdRipping;
+    final destinations = <NavigationRailDestination>[
+      const NavigationRailDestination(
+        icon: Icon(Icons.library_music_outlined),
+        selectedIcon: Icon(Icons.library_music),
+        label: Text('Library'),
+      ),
+      const NavigationRailDestination(
+        icon: Icon(Icons.queue_music_outlined),
+        selectedIcon: Icon(Icons.queue_music),
+        label: Text('Playlists'),
+      ),
+      const NavigationRailDestination(
+        icon: Icon(Icons.auto_awesome_outlined),
+        selectedIcon: Icon(Icons.auto_awesome),
+        label: Text('Metadata'),
+      ),
+    ];
+    final paths = <String>['/', '/playlists', '/metadata'];
+    if (supportsCdRipping) {
+      destinations.add(
+        const NavigationRailDestination(
+          icon: Icon(Icons.album_outlined),
+          selectedIcon: Icon(Icons.album),
+          label: Text('CD import'),
+        ),
+      );
+      paths.add('/cd');
+    }
+    destinations.add(
+      const NavigationRailDestination(
+        icon: Icon(Icons.settings_outlined),
+        selectedIcon: Icon(Icons.settings),
+        label: Text('Settings'),
+      ),
+    );
+    paths.add('/settings');
+    final selectedIndex = paths.indexOf(location);
     return Scaffold(
       body: Row(
         children: [
           NavigationRail(
-            selectedIndex: switch (location) {
-              '/playlists' => 1,
-              '/metadata' => 2,
-              '/cd' => 3,
-              '/settings' => 4,
-              _ => 0,
-            },
-            onDestinationSelected: (index) {
-              context.go(switch (index) {
-                1 => '/playlists',
-                2 => '/metadata',
-                3 => '/cd',
-                4 => '/settings',
-                _ => '/',
-              });
-            },
+            selectedIndex: selectedIndex < 0 ? 0 : selectedIndex,
+            onDestinationSelected: (index) => context.go(paths[index]),
             labelType: NavigationRailLabelType.all,
-            destinations: const [
-              NavigationRailDestination(
-                icon: Icon(Icons.library_music_outlined),
-                selectedIcon: Icon(Icons.library_music),
-                label: Text('Library'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.queue_music_outlined),
-                selectedIcon: Icon(Icons.queue_music),
-                label: Text('Playlists'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.auto_awesome_outlined),
-                selectedIcon: Icon(Icons.auto_awesome),
-                label: Text('Metadata'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.album_outlined),
-                selectedIcon: Icon(Icons.album),
-                label: Text('CD import'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.settings_outlined),
-                selectedIcon: Icon(Icons.settings),
-                label: Text('Settings'),
-              ),
-            ],
+            destinations: destinations,
           ),
           const VerticalDivider(width: 1),
           Expanded(child: child),
