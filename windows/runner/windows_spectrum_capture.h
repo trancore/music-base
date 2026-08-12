@@ -1,8 +1,8 @@
 #ifndef RUNNER_WINDOWS_SPECTRUM_CAPTURE_H_
 #define RUNNER_WINDOWS_SPECTRUM_CAPTURE_H_
 
-#include <flutter/event_channel.h>
 #include <flutter/encodable_value.h>
+#include <flutter/event_sink.h>
 
 #include <atomic>
 #include <memory>

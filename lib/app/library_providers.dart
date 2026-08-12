@@ -8,6 +8,7 @@ import '../data/library/shared_preferences_library_repository.dart';
 import '../data/library/smb_library_scanner.dart';
 import '../domain/library/library_repository.dart';
 import '../domain/library/local_directory_access_service.dart';
+import '../domain/library/library_search.dart';
 import '../domain/library/library_track.dart';
 import 'providers.dart';
 import 'smb_providers.dart';
@@ -40,6 +41,13 @@ final libraryProvider =
     AsyncNotifierProvider<LibraryNotifier, List<LibraryTrack>>(
       LibraryNotifier.new,
     );
+
+final librarySearchQueryProvider = StateProvider<String>((ref) => '');
+
+final visibleLibraryTracksProvider = Provider<List<LibraryTrack>>((ref) {
+  final tracks = ref.watch(libraryProvider).valueOrNull ?? const [];
+  return filterLibraryTracks(tracks, ref.watch(librarySearchQueryProvider));
+});
 
 class LibraryNotifier extends AsyncNotifier<List<LibraryTrack>> {
   late final LibraryRepository _repository;

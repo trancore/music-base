@@ -5,42 +5,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/library_providers.dart';
 import '../../app/playback_providers.dart';
 import '../../app/smb_providers.dart';
-import '../../domain/library/library_search.dart';
 import '../../domain/library/library_track.dart';
 import '../../domain/playback/audio_analysis_service.dart';
 import '../../domain/playback/playback_service.dart';
 import '../../domain/playback/realtime_spectrum_service.dart';
 import '../playback/playback_visualizer.dart';
 
-class HomePage extends ConsumerStatefulWidget {
+class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
   @override
-  ConsumerState<HomePage> createState() => _HomePageState();
-}
-
-class _HomePageState extends ConsumerState<HomePage> {
-  final _searchController = TextEditingController();
-  String _searchQuery = '';
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(libraryProvider);
+    final tracks = library.valueOrNull ?? const <LibraryTrack>[];
+    final visibleTracks = ref.watch(visibleLibraryTracksProvider);
+    final searchQuery = ref.watch(librarySearchQueryProvider);
     final sourcePath = ref.read(libraryProvider.notifier).sourcePath;
     final playback = ref.watch(playbackServiceProvider);
     final audioAnalysis = ref.watch(audioAnalysisServiceProvider);
     final realtimeSpectrum = ref.watch(realtimeSpectrumServiceProvider);
     final snapshot = playback.snapshot;
     final smbSource = ref.watch(smbSourceProvider).valueOrNull;
-    final tracks = library.valueOrNull ?? const <LibraryTrack>[];
-    final filteredTracks = filterLibraryTracks(tracks, _searchQuery);
-
     return Scaffold(
       appBar: AppBar(title: const Text('Music Base')),
       body: ListView(
@@ -94,34 +79,35 @@ class _HomePageState extends ConsumerState<HomePage> {
             ),
           ],
           const SizedBox(height: 24),
-          if (filteredTracks.isNotEmpty) ...[
+          if (visibleTracks.isNotEmpty) ...[
             FilledButton.icon(
-              onPressed: () => playback.playQueue(filteredTracks),
+              onPressed: () => playback.playQueue(visibleTracks),
               icon: const Icon(Icons.playlist_play),
               label: const Text('Play library'),
             ),
             const SizedBox(height: 12),
           ],
           TextField(
-            controller: _searchController,
             decoration: InputDecoration(
               labelText: 'Search library',
               hintText: 'Title, artist, album, or file path',
               prefixIcon: const Icon(Icons.search),
-              suffixIcon: _searchQuery.isEmpty
+              border: const OutlineInputBorder(),
+              suffixIcon: searchQuery.isEmpty
                   ? null
                   : IconButton(
                       tooltip: 'Clear search',
-                      onPressed: () {
-                        _searchController.clear();
-                        setState(() => _searchQuery = '');
-                      },
+                      onPressed: () =>
+                          ref.read(librarySearchQueryProvider.notifier).state =
+                              '',
                       icon: const Icon(Icons.clear),
                     ),
             ),
-            onChanged: (value) => setState(() => _searchQuery = value),
+            onChanged: (query) {
+              ref.read(librarySearchQueryProvider.notifier).state = query;
+            },
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 24),
           if (library.isLoading)
             const Center(child: CircularProgressIndicator())
           else if (library.hasError)
@@ -147,16 +133,18 @@ class _HomePageState extends ConsumerState<HomePage> {
                 ),
               ),
             )
-          else if (filteredTracks.isEmpty)
+          else if (visibleTracks.isEmpty)
             const Card(
               child: ListTile(
                 leading: Icon(Icons.search_off),
-                title: Text('No matching tracks'),
-                subtitle: Text('Try a different search term.'),
+                title: Text('No matching tracks found'),
+                subtitle: Text(
+                  'Choose a directory or adjust the search query.',
+                ),
               ),
             )
           else
-            ...filteredTracks.map(
+            ...visibleTracks.map(
               (track) => _TrackTile(
                 track: track,
                 isCurrent:
