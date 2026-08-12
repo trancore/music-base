@@ -102,4 +102,58 @@ void main() {
       ),
     );
   });
+
+  test('rejects duplicate CD track numbers', () {
+    const planner = CdImportPlanner();
+
+    expect(
+      () => planner.create(
+        release: release,
+        cdTracks: const [CdTrack(number: 1), CdTrack(number: 1)],
+        outputDirectory: '/Music',
+        format: CdImportFormat.flac,
+      ),
+      throwsA(
+        isA<CdImportPlanningException>().having(
+          (error) => error.message,
+          'message',
+          'A CD track cannot be selected more than once.',
+        ),
+      ),
+    );
+  });
+
+  test('rejects inconsistent release track counts', () {
+    const planner = CdImportPlanner();
+    const inconsistentRelease = MusicBrainzRelease(
+      id: 'release-id',
+      title: 'Album',
+      trackCount: 3,
+      media: [
+        MusicBrainzMedium(
+          position: 1,
+          tracks: [
+            MusicBrainzTrack(position: 1, title: 'Intro'),
+            MusicBrainzTrack(position: 2, title: 'Song'),
+          ],
+        ),
+      ],
+    );
+
+    expect(
+      () => planner.create(
+        release: inconsistentRelease,
+        cdTracks: const [CdTrack(number: 1), CdTrack(number: 2)],
+        outputDirectory: '/Music',
+        format: CdImportFormat.flac,
+      ),
+      throwsA(
+        isA<CdImportPlanningException>().having(
+          (error) => error.message,
+          'message',
+          'The release declares 3 tracks, but contains 2 metadata tracks.',
+        ),
+      ),
+    );
+  });
 }

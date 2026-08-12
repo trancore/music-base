@@ -74,10 +74,23 @@ class CdImportPlanner {
       0,
       (count, medium) => count + medium.tracks.length,
     );
+    if (release.trackCount case final declaredTrackCount?
+        when declaredTrackCount != releaseTrackCount) {
+      throw CdImportPlanningException(
+        'The release declares $declaredTrackCount tracks, but contains '
+        '$releaseTrackCount metadata tracks.',
+      );
+    }
     if (cdTrackCount != null && cdTrackCount != releaseTrackCount) {
       throw CdImportPlanningException(
         'The CD has $cdTrackCount tracks, but the release has '
         '$releaseTrackCount metadata tracks.',
+      );
+    }
+    final selectedTrackNumbers = <int>{};
+    if (cdTracks.any((track) => !selectedTrackNumbers.add(track.number))) {
+      throw const CdImportPlanningException(
+        'A CD track cannot be selected more than once.',
       );
     }
     final metadataTracks = release.media
