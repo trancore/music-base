@@ -20,63 +20,109 @@ class SettingsPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
-          Text('Appearance', style: Theme.of(context).textTheme.headlineMedium),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<ThemeMode>(
-            initialValue: settings.themeMode,
-            decoration: const InputDecoration(labelText: 'Theme'),
-            items: const [
-              DropdownMenuItem(value: ThemeMode.system, child: Text('System')),
-              DropdownMenuItem(value: ThemeMode.light, child: Text('Light')),
-              DropdownMenuItem(value: ThemeMode.dark, child: Text('Dark')),
-            ],
-            onChanged: (value) {
-              if (value != null) {
-                ref.read(appSettingsProvider.notifier).setThemeMode(value);
-              }
-            },
+          _SettingsSection(
+            title: 'Appearance',
+            subtitle: 'Tune the workspace to your setup.',
+            child: Column(
+              children: [
+                DropdownButtonFormField<ThemeMode>(
+                  initialValue: settings.themeMode,
+                  decoration: const InputDecoration(labelText: 'Theme'),
+                  items: const [
+                    DropdownMenuItem(
+                      value: ThemeMode.system,
+                      child: Text('System'),
+                    ),
+                    DropdownMenuItem(
+                      value: ThemeMode.light,
+                      child: Text('Light'),
+                    ),
+                    DropdownMenuItem(
+                      value: ThemeMode.dark,
+                      child: Text('Dark'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setThemeMode(value);
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int>(
+                  initialValue: settings.accentColorValue,
+                  decoration: const InputDecoration(labelText: 'Accent color'),
+                  items: const [
+                    DropdownMenuItem(value: 0xFF8C7BFF, child: Text('Violet')),
+                    // Keep the previous default available for existing saved settings.
+                    DropdownMenuItem(value: 0xFF6750A4, child: Text('Purple')),
+                    DropdownMenuItem(value: 0xFF006A6A, child: Text('Teal')),
+                    DropdownMenuItem(value: 0xFF8C5000, child: Text('Amber')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setAccentColor(value);
+                    }
+                  },
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 16),
-          DropdownButtonFormField<int>(
-            initialValue: settings.accentColorValue,
-            decoration: const InputDecoration(labelText: 'Accent color'),
-            items: const [
-              DropdownMenuItem(value: 0xFF6750A4, child: Text('Purple')),
-              DropdownMenuItem(value: 0xFF006A6A, child: Text('Teal')),
-              DropdownMenuItem(value: 0xFF8C5000, child: Text('Amber')),
-            ],
-            onChanged: (value) {
-              if (value != null) {
-                ref.read(appSettingsProvider.notifier).setAccentColor(value);
-              }
-            },
-          ),
-          const SizedBox(height: 40),
-          Text(
-            'Local library',
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Choose a local directory to scan and use as the library source.',
+          _SettingsSection(
+            title: 'Local library',
+            subtitle:
+                'Choose a local directory to scan and use as the library source.',
+            child: const LocalLibrarySourceSection(),
           ),
           const SizedBox(height: 16),
-          const LocalLibrarySourceSection(),
-          const SizedBox(height: 40),
-          Text(
-            'SMB library',
-            style: Theme.of(context).textTheme.headlineMedium,
+          _SettingsSection(
+            title: 'SMB library',
+            subtitle: 'Credentials are stored in platform secure storage.',
+            child: const SmbConnectionForm(),
           ),
-          const SizedBox(height: 8),
-          const Text('Credentials are stored in the platform secure storage.'),
-          const SizedBox(height: 16),
-          const SmbConnectionForm(),
         ],
       ),
     );
   }
+}
+
+class _SettingsSection extends StatelessWidget {
+  const _SettingsSection({
+    required this.title,
+    required this.subtitle,
+    required this.child,
+  });
+  final String title;
+  final String subtitle;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 4),
+          Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 18),
+          child,
+        ],
+      ),
+    ),
+  );
 }
 
 class LocalLibrarySourceSection extends ConsumerWidget {
@@ -113,7 +159,7 @@ class LocalLibrarySourceSection extends ConsumerWidget {
   Future<void> _chooseDirectory(WidgetRef ref) async {
     final path = await getDirectoryPath();
     if (path == null || path.trim().isEmpty) return;
-    await ref.read(libraryProvider.notifier).scanDirectory(path);
+    await ref.read(libraryProvider.notifier).selectDirectory(path);
   }
 }
 

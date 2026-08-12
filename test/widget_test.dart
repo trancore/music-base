@@ -9,6 +9,7 @@ import 'package:music_base/app/providers.dart';
 import 'package:music_base/domain/library/library_repository.dart';
 import 'package:music_base/domain/library/library_track.dart';
 import 'package:music_base/domain/library/smb_source.dart';
+import 'package:music_base/presentation/playback/playback_visualizer.dart';
 
 void main() {
   testWidgets('renders the Music Base library shell', (tester) async {
@@ -61,7 +62,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Artist · Album'), findsOneWidget);
+    expect(find.text('Artist'), findsNWidgets(2));
+    expect(find.text('Album'), findsNWidgets(2));
   });
 
   testWidgets('retries a failed library scan from the error card', (
@@ -128,7 +130,8 @@ void main() {
     await tester.tap(find.byIcon(Icons.play_arrow).last);
     await tester.pump();
 
-    expect(find.text('Playback visualizer'), findsOneWidget);
+    expect(find.text('Waveform / spectrum visualizer'), findsOneWidget);
+    expect(find.byType(PlaybackVisualizer), findsOneWidget);
   });
 }
 

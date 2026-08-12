@@ -29,39 +29,77 @@ class PlaylistsPage extends ConsumerWidget {
           ),
         ],
       ),
-      body: playlists.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) => Center(child: Text('$error')),
-        data: (items) => items.isEmpty
-            ? const Center(
-                child: Text('No playlists yet. Scan a library first.'),
-              )
-            : ListView.builder(
-                padding: const EdgeInsets.all(24),
-                itemCount: items.length,
-                itemBuilder: (context, index) {
-                  final playlist = items[index];
-                  final playlistTracks = playlist.trackPaths
-                      .expand(
-                        (path) =>
-                            tracks.where((track) => track.sourcePath == path),
-                      )
-                      .toList(growable: false);
-                  return ListTile(
-                    leading: const Icon(Icons.queue_music),
-                    title: Text(playlist.name),
-                    subtitle: Text('${playlistTracks.length} tracks'),
-                    onTap: playlistTracks.isEmpty
-                        ? null
-                        : () => playback.playQueue(playlistTracks),
-                    trailing: IconButton(
-                      tooltip: 'Delete playlist',
-                      onPressed: () => notifier.delete(playlist.id),
-                      icon: const Icon(Icons.delete_outline),
+      body: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        child: playlists.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, stackTrace) => Center(child: Text('$error')),
+          data: (items) => items.isEmpty
+              ? Center(
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(28),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.queue_music_outlined, size: 42),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'No playlists yet',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Scan a library first, then create a playlist.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
                     ),
-                  );
-                },
-              ),
+                  ),
+                )
+              : ListView.builder(
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    final playlist = items[index];
+                    final playlistTracks = playlist.trackPaths
+                        .expand(
+                          (path) =>
+                              tracks.where((track) => track.sourcePath == path),
+                        )
+                        .toList(growable: false);
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.primaryContainer,
+                          child: Icon(
+                            Icons.queue_music,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onPrimaryContainer,
+                          ),
+                        ),
+                        title: Text(
+                          playlist.name,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        subtitle: Text('${playlistTracks.length} tracks'),
+                        onTap: playlistTracks.isEmpty
+                            ? null
+                            : () => playback.playQueue(playlistTracks),
+                        trailing: IconButton(
+                          tooltip: 'Delete playlist',
+                          onPressed: () => notifier.delete(playlist.id),
+                          icon: const Icon(Icons.delete_outline),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
       ),
       floatingActionButton: tracks.isEmpty
           ? null
@@ -78,32 +116,52 @@ class PlaylistsPage extends ConsumerWidget {
     PlaylistNotifier notifier,
     List<LibraryTrack> tracks,
   ) async {
-    final controller = TextEditingController();
     final name = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('New playlist'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: 'Name'),
-          onSubmitted: (value) => Navigator.of(context).pop(value),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(controller.text),
-            child: const Text('Create'),
-          ),
-        ],
-      ),
+      builder: (context) => const _CreatePlaylistDialog(),
     );
-    controller.dispose();
     if (name != null) {
       await notifier.create(name, tracks);
     }
+  }
+}
+
+class _CreatePlaylistDialog extends StatefulWidget {
+  const _CreatePlaylistDialog();
+
+  @override
+  State<_CreatePlaylistDialog> createState() => _CreatePlaylistDialogState();
+}
+
+class _CreatePlaylistDialogState extends State<_CreatePlaylistDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('New playlist'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        decoration: const InputDecoration(labelText: 'Name'),
+        onSubmitted: (value) => Navigator.of(context).pop(value),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(_controller.text),
+          child: const Text('Create'),
+        ),
+      ],
+    );
   }
 }

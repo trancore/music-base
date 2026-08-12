@@ -26,7 +26,7 @@ class PlaybackVisualizer extends StatefulWidget {
 class _PlaybackVisualizerState extends State<PlaybackVisualizer>
     with SingleTickerProviderStateMixin {
   List<double>? _waveform;
-  List<double>? _spectrum;
+  List<double>? _smoothedSpectrum;
   String? _sourcePath;
   int? _sessionId;
   bool _spectrumStarted = false;
@@ -43,7 +43,19 @@ class _PlaybackVisualizerState extends State<PlaybackVisualizer>
     _spectrumSubscription = widget.realtimeSpectrum.spectrumStream.listen((
       spectrum,
     ) {
-      if (mounted) setState(() => _spectrum = spectrum);
+      if (!mounted) return;
+      final previous = _smoothedSpectrum;
+      final smoothed = [
+        for (var index = 0; index < spectrum.length; index++)
+          previous == null || previous.length != spectrum.length
+              ? spectrum[index]
+              : spectrum[index] >= previous[index]
+              ? previous[index] * 0.35 + spectrum[index] * 0.65
+              : previous[index] * 0.88 + spectrum[index] * 0.12,
+      ];
+      setState(() {
+        _smoothedSpectrum = smoothed;
+      });
     });
   }
 
@@ -63,15 +75,16 @@ class _PlaybackVisualizerState extends State<PlaybackVisualizer>
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) => SizedBox(
-        height: 72,
+        height: 200,
         width: double.infinity,
         child: CustomPaint(
           painter: _VisualizerPainter(
             progress: _progress,
             phase: widget.snapshot.isPlaying ? _controller.value : 0,
             waveform: _waveform,
-            spectrum: _spectrum,
+            spectrum: _smoothedSpectrum,
             activeColor: colorScheme.primary,
+            accentColor: colorScheme.secondary,
             inactiveColor: colorScheme.surfaceContainerHighest,
           ),
         ),
@@ -117,6 +130,7 @@ class _VisualizerPainter extends CustomPainter {
     required this.waveform,
     required this.spectrum,
     required this.activeColor,
+    required this.accentColor,
     required this.inactiveColor,
   });
 
@@ -125,36 +139,95 @@ class _VisualizerPainter extends CustomPainter {
   final List<double>? waveform;
   final List<double>? spectrum;
   final Color activeColor;
+  final Color accentColor;
   final Color inactiveColor;
 
   @override
   void paint(Canvas canvas, Size size) {
-    const barCount = 32;
-    const gap = 3.0;
+    final barCount = spectrum?.length ?? 256;
+    const gap = 1.0;
     final barWidth = (size.width - gap * (barCount - 1)) / barCount;
-    final center = size.height / 2;
+    final baseline = size.height - 10;
+    const chartTop = 6.0;
     final activeBars = (progress * barCount).floor();
-    final paint = Paint()..style = PaintingStyle.fill;
+
+    final gridPaint = Paint()
+      ..color = inactiveColor.withValues(alpha: 0.28)
+      ..strokeWidth = 1;
+    for (var line = 1; line <= 3; line++) {
+      final y = chartTop + (baseline - chartTop) * line / 4;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    }
+    for (var index = 8; index < barCount; index += 8) {
+      final x = index * (barWidth + gap) - gap / 2;
+      canvas.drawLine(Offset(x, chartTop), Offset(x, baseline), gridPaint);
+    }
 
     for (var index = 0; index < barCount; index++) {
-      final fallback = 0.3 + (math.sin(index * 0.31).abs() * 0.7);
-      final amplitude = spectrum != null && spectrum!.isNotEmpty
-          ? spectrum![index % spectrum!.length].clamp(0.08, 1.0)
+      final fallback = 0.12 + (math.sin(index * 0.31).abs() * 0.48);
+      final rawAmplitude = spectrum != null && spectrum!.isNotEmpty
+          ? _spectrumValue(index)
           : waveform == null
-          ? (0.18 + math.sin(index * 0.85 + phase * math.pi * 2).abs() * 0.2) *
+          ? (0.12 + math.sin(index * 0.85 + phase * math.pi * 2).abs() * 0.18) *
                 fallback
-          : waveform![index % waveform!.length].clamp(0.08, 1.0);
-      final height = size.height * amplitude;
+          : waveform![index % waveform!.length];
+      final normalizedAmplitude = rawAmplitude.clamp(0, 10).toDouble();
+      final amplitude = spectrum != null
+          ? normalizedAmplitude
+          : math.pow(normalizedAmplitude, 0.3).toDouble().clamp(0, 1);
+      final height = (baseline - chartTop) * amplitude;
       final left = index * (barWidth + gap);
-      paint.color = index <= activeBars ? activeColor : inactiveColor;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(left, center - height / 2, barWidth, height),
-          const Radius.circular(3),
-        ),
-        paint,
+      final rect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(left, baseline - height, barWidth, height),
+        Radius.zero,
       );
+      final isPlayed = index <= activeBars;
+      final topColor = isPlayed
+          ? Color.lerp(accentColor, Colors.white, 0.18)!
+          : const Color(0xFF7892AD).withValues(alpha: 0.72);
+      final bottomColor = isPlayed
+          ? Color.lerp(activeColor, const Color(0xFF75B7E8), 0.45)!
+          : const Color(0xFF344A60).withValues(alpha: 0.6);
+      final glowPaint = Paint()
+        ..color = const Color(
+          0xFF72B8EA,
+        ).withValues(alpha: isPlayed ? 0.13 : 0.015)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5);
+      canvas.drawRRect(rect, glowPaint);
+      final barPaint = Paint()
+        ..shader =
+            LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [topColor, bottomColor],
+            ).createShader(
+              Rect.fromLTWH(left, baseline - height, barWidth, height),
+            );
+      canvas.drawRRect(rect, barPaint);
+      if (height > 10) {
+        final capPaint = Paint()..color = topColor.withValues(alpha: 0.82);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(left, baseline - height, barWidth, 1.5),
+            Radius.zero,
+          ),
+          capPaint,
+        );
+      }
     }
+    final baselinePaint = Paint()
+      ..color = const Color(0xFF7FA6C7).withValues(alpha: 0.7)
+      ..strokeWidth = 1;
+    canvas.drawLine(
+      Offset.zero.translate(0, baseline),
+      Offset(size.width, baseline),
+      baselinePaint,
+    );
+  }
+
+  double _spectrumValue(int index) {
+    final values = spectrum!;
+    return values[index.clamp(0, values.length - 1)];
   }
 
   @override
@@ -164,5 +237,6 @@ class _VisualizerPainter extends CustomPainter {
       waveform != oldDelegate.waveform ||
       spectrum != oldDelegate.spectrum ||
       activeColor != oldDelegate.activeColor ||
+      accentColor != oldDelegate.accentColor ||
       inactiveColor != oldDelegate.inactiveColor;
 }

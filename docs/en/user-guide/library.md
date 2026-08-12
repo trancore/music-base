@@ -4,12 +4,14 @@ Select a local music directory from Settings and the app scans it recursively. F
 
 The paths and basic track information are cached in the local database. The selected library location remains the source of truth; audio files are never copied into the database.
 
-The library search field on the home screen matches cached tracks by title, artist, album, or source path case-insensitively and updates while typing.
+Use the **Search library** field on the home screen to filter the cached tracks by title, artist, album, or file path. Search is case-insensitive and applies immediately while typing. The track list is a table: click the Title, Artist, Album, or Source header to toggle ascending and descending order. Double-click a track to play it.
 
-When artist or album information can be inferred, it is shown below the track title in the library list. The source path remains visible as a secondary line.
+The library heading, search field, and table header stay fixed while browsing. When there are many tracks, only the track rows scroll inside the table.
+
+When artist or album information can be inferred, it is shown in the library table. The source path remains visible as a secondary field. The artwork column keeps a fixed width when artwork is unavailable.
 
 Embedded album artwork up to 2 MB is cached with the library entry and shown as a thumbnail. Larger or unreadable artwork is skipped.
 
-If the selected location is unavailable or scanning fails, the app shows an error with a **Retry** button. After checking the source, retry the scan from the home screen. After an SMB share has been tested, you can scan it from the home screen. SMB tracks can be played directly through range reads.
+If the selected location is unavailable or scanning fails, the app shows an error with a **Retry** button. After checking the source, retry the scan from the home screen. After an SMB share has been tested and saved in Settings, you can scan it from the Library screen. SMB tracks can be played directly through range reads.
 
 Cached information can be shown while the library location is unavailable, but playback requires access to the selected location.

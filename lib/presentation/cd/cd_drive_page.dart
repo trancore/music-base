@@ -100,47 +100,60 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(24),
-        children: [
-          Text('CD drives', style: Theme.of(context).textTheme.headlineMedium),
-          const SizedBox(height: 8),
-          const Text(
-            'Select a drive and tracks, then choose an output directory to rip them.',
+      body: LayoutBuilder(
+        builder: (context, constraints) => ListView(
+          padding: EdgeInsets.fromLTRB(
+            constraints.maxWidth < 700 ? 16 : 32,
+            constraints.maxWidth < 700 ? 8 : 28,
+            constraints.maxWidth < 700 ? 16 : 32,
+            28,
           ),
-          const SizedBox(height: 24),
-          if (_loading) const LinearProgressIndicator(),
-          if (_error case final message?) ...[
-            Card(
-              color: Theme.of(context).colorScheme.errorContainer,
-              child: ListTile(
-                leading: const Icon(Icons.error_outline),
-                title: const Text('CD import failed'),
-                subtitle: Text(message),
-              ),
+          children: [
+            Text(
+              'CD drives',
+              style: Theme.of(
+                context,
+              ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800),
             ),
-          ] else if (_statusMessage case final message?) ...[
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.info_outline),
-                title: Text(message),
-              ),
+            const SizedBox(height: 6),
+            Text(
+              'Select a drive, enrich it with MusicBrainz, then rip it to your library.',
+              style: Theme.of(context).textTheme.bodyMedium,
             ),
-          ] else if (!_loading && _drives.isEmpty)
-            const Card(
-              child: ListTile(
-                leading: Icon(Icons.album_outlined),
-                title: Text('No CD drives detected'),
-                subtitle: Text('Connect a CD drive and refresh this page.'),
-              ),
-            )
-          else
-            ..._drives.map(_buildDriveCard),
-          if (selectedDrive != null && selectedTrackNumbers.isNotEmpty) ...[
             const SizedBox(height: 24),
-            _buildImportControls(selectedDrive, selectedTrackNumbers),
+            if (_loading) const LinearProgressIndicator(),
+            if (_error case final message?) ...[
+              Card(
+                color: Theme.of(context).colorScheme.errorContainer,
+                child: ListTile(
+                  leading: const Icon(Icons.error_outline),
+                  title: const Text('CD import failed'),
+                  subtitle: Text(message),
+                ),
+              ),
+            ] else if (_statusMessage case final message?) ...[
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.info_outline),
+                  title: Text(message),
+                ),
+              ),
+            ] else if (!_loading && _drives.isEmpty)
+              const Card(
+                child: ListTile(
+                  leading: Icon(Icons.album_outlined),
+                  title: Text('No CD drives detected'),
+                  subtitle: Text('Connect a CD drive and refresh this page.'),
+                ),
+              )
+            else
+              ..._drives.map(_buildDriveCard),
+            if (selectedDrive != null && selectedTrackNumbers.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              _buildImportControls(selectedDrive, selectedTrackNumbers),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -164,6 +177,7 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
 
   Widget _buildImportControls(CdDrive drive, Set<int> selectedTracks) {
     final progress = _totalTracks == 0 ? 0.0 : _completedTracks / _totalTracks;
+    final isCompact = MediaQuery.sizeOf(context).width < 700;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -175,44 +189,55 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _outputDirectory ?? 'No output directory selected',
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                OutlinedButton.icon(
+            if (isCompact) ...[
+              Text(
+                _outputDirectory ?? 'No output directory selected',
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: OutlinedButton.icon(
                   onPressed: _ripping ? null : _chooseOutputDirectory,
                   icon: const Icon(Icons.folder_open),
                   label: const Text('Choose output'),
                 ),
-              ],
-            ),
+              ),
+            ] else
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _outputDirectory ?? 'No output directory selected',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _ripping ? null : _chooseOutputDirectory,
+                    icon: const Icon(Icons.folder_open),
+                    label: const Text('Choose output'),
+                  ),
+                ],
+              ),
             const SizedBox(height: 12),
             Text(
               'MusicBrainz metadata',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _artistController,
-                    decoration: const InputDecoration(labelText: 'Artist'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: _albumController,
-                    decoration: const InputDecoration(labelText: 'Album'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
+            if (isCompact) ...[
+              TextField(
+                controller: _artistController,
+                decoration: const InputDecoration(labelText: 'Artist'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _albumController,
+                decoration: const InputDecoration(labelText: 'Album'),
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: IconButton(
                   tooltip: 'Search MusicBrainz',
                   onPressed: _metadataLoading ? null : _searchMetadata,
                   icon: _metadataLoading
@@ -222,8 +247,36 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
                         )
                       : const Icon(Icons.search),
                 ),
-              ],
-            ),
+              ),
+            ] else
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _artistController,
+                      decoration: const InputDecoration(labelText: 'Artist'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _albumController,
+                      decoration: const InputDecoration(labelText: 'Album'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    tooltip: 'Search MusicBrainz',
+                    onPressed: _metadataLoading ? null : _searchMetadata,
+                    icon: _metadataLoading
+                        ? const SizedBox.square(
+                            dimension: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.search),
+                  ),
+                ],
+              ),
             if (_metadataError case final message?)
               Padding(
                 padding: const EdgeInsets.only(top: 8),

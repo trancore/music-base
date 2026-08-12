@@ -10,21 +10,27 @@ class WindowsRealtimeSpectrumService implements RealtimeSpectrumService {
 
   final EventChannel _events;
   final MethodChannel _methods;
+  final List<double> _pendingSamples = [];
 
   @override
   Stream<List<double>> get spectrumStream =>
-      _events.receiveBroadcastStream().map(
-        (event) => calculateSpectrum(
-          (event as List<dynamic>)
-              .map((value) => (value as num).toDouble())
-              .toList(),
-        ),
-      );
+      _events.receiveBroadcastStream().expand((event) {
+        _pendingSamples.addAll(
+          (event as List<dynamic>).map((value) => (value as num).toDouble()),
+        );
+        if (_pendingSamples.length < maxSpectrumSamples) return const [];
+        final frame = _pendingSamples.sublist(0, maxSpectrumSamples);
+        _pendingSamples.removeRange(0, maxSpectrumSamples);
+        return [calculateLogSpectrum(frame)];
+      });
 
   @override
   Future<void> start({int? audioSessionId}) =>
       _methods.invokeMethod<void>('start');
 
   @override
-  Future<void> stop() => _methods.invokeMethod<void>('stop');
+  Future<void> stop() async {
+    _pendingSamples.clear();
+    await _methods.invokeMethod<void>('stop');
+  }
 }
