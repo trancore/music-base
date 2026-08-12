@@ -1,6 +1,6 @@
 # Playback and display
 
-Select a local FLAC or MP3 file from the library to play it. The current implementation supports play, pause, stop, and seeking.
+Select a FLAC or MP3 file from the library to play it. In addition to local files, tracks on the configured SMB share can be played directly. The current implementation supports play, pause, stop, seeking, previous/next track, volume control, and mute.
 
 Search by track title, artist, album, or source path before selecting a track to play.
 
