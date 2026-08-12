@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../presentation/home/home_page.dart';
 import '../presentation/cd/cd_drive_page.dart';
 import '../presentation/playlists/playlists_page.dart';
+import '../presentation/radio/radio_page.dart';
 import '../presentation/settings/settings_page.dart';
 import '../presentation/playback/playback_dock.dart';
 import '../domain/playback/playback_service.dart';
@@ -26,6 +27,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/playlists',
             pageBuilder: (context, state) =>
                 _page(const PlaylistsPage(), state),
+          ),
+          GoRoute(
+            path: '/radio',
+            pageBuilder: (context, state) => _page(const RadioPage(), state),
           ),
           GoRoute(
             path: '/cd',
@@ -84,8 +89,14 @@ class AppShell extends ConsumerWidget {
         'Playlists',
         '/playlists',
       ),
+      const _AppDestination(
+        Icons.radio_outlined,
+        Icons.radio,
+        'Radio',
+        '/radio',
+      ),
     ];
-    final paths = <String>['/', '/playlists'];
+    final paths = <String>['/', '/playlists', '/radio'];
     if (supportsCdRipping) {
       destinations.add(
         const _AppDestination(
@@ -113,62 +124,117 @@ class AppShell extends ConsumerWidget {
     final isCompact = MediaQuery.sizeOf(context).width < 700;
 
     if (isCompact) {
-      return Scaffold(
-        body: Column(
-          children: [
-            if (playback.snapshot.currentTrack != null)
-              PlaybackDock(
-                playback: playback,
-                audioAnalysis: audioAnalysis,
-                realtimeSpectrum: realtimeSpectrum,
-                compact: true,
+      return _AppShellFrame(
+        loading: playback.snapshot.isLoading,
+        child: Scaffold(
+          body: Column(
+            children: [
+              if (playback.snapshot.currentTrack != null ||
+                  playback.snapshot.currentRadioStation != null)
+                PlaybackDock(
+                  playback: playback,
+                  audioAnalysis: audioAnalysis,
+                  realtimeSpectrum: realtimeSpectrum,
+                  compact: true,
+                ),
+              Expanded(child: child),
+              NavigationBar(
+                selectedIndex: selectedIndex < 0 ? 0 : selectedIndex,
+                onDestinationSelected: (index) => context.go(paths[index]),
+                destinations: [
+                  for (final destination in destinations)
+                    NavigationDestination(
+                      icon: Icon(destination.icon),
+                      selectedIcon: Icon(destination.selectedIcon),
+                      label: destination.label,
+                    ),
+                ],
               ),
-            Expanded(child: child),
-            NavigationBar(
-              selectedIndex: selectedIndex < 0 ? 0 : selectedIndex,
-              onDestinationSelected: (index) => context.go(paths[index]),
-              destinations: [
-                for (final destination in destinations)
-                  NavigationDestination(
-                    icon: Icon(destination.icon),
-                    selectedIcon: Icon(destination.selectedIcon),
-                    label: destination.label,
-                  ),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       );
     }
 
-    return Scaffold(
-      body: Row(
-        children: [
-          _DesktopSidebar(
-            destinations: destinations,
-            selectedIndex: selectedIndex < 0 ? 0 : selectedIndex,
-            onDestinationSelected: (index) => context.go(paths[index]),
-            playback: playback,
-          ),
-          const VerticalDivider(width: 1),
-          Expanded(
-            child: Column(
-              children: [
-                if (playback.snapshot.currentTrack != null)
-                  PlaybackDock(
-                    playback: playback,
-                    audioAnalysis: audioAnalysis,
-                    realtimeSpectrum: realtimeSpectrum,
-                    compact: false,
-                  ),
-                Expanded(child: child),
-              ],
+    return _AppShellFrame(
+      loading: playback.snapshot.isLoading,
+      child: Scaffold(
+        body: Row(
+          children: [
+            _DesktopSidebar(
+              destinations: destinations,
+              selectedIndex: selectedIndex < 0 ? 0 : selectedIndex,
+              onDestinationSelected: (index) => context.go(paths[index]),
+              playback: playback,
             ),
-          ),
-        ],
+            const VerticalDivider(width: 1),
+            Expanded(
+              child: Column(
+                children: [
+                  if (playback.snapshot.currentTrack != null ||
+                      playback.snapshot.currentRadioStation != null)
+                    PlaybackDock(
+                      playback: playback,
+                      audioAnalysis: audioAnalysis,
+                      realtimeSpectrum: realtimeSpectrum,
+                      compact: false,
+                    ),
+                  Expanded(child: child),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+}
+
+class _AppShellFrame extends StatelessWidget {
+  const _AppShellFrame({required this.child, required this.loading});
+
+  final Widget child;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    children: [
+      child,
+      if (loading)
+        Positioned(
+          left: 24,
+          right: 24,
+          bottom: 20,
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: Card(
+              elevation: 8,
+              margin: EdgeInsets.zero,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2.5),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Loading audio stream…',
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+    ],
+  );
 }
 
 class _AppDestination {

@@ -23,11 +23,13 @@ class PlaybackDock extends StatelessWidget {
   Widget build(BuildContext context) {
     final snapshot = playback.snapshot;
     final track = snapshot.currentTrack;
-    if (track == null) return const SizedBox.shrink();
+    final station = snapshot.currentRadioStation;
+    if (track == null && station == null) return const SizedBox.shrink();
+    final isRadio = station != null;
     final duration = snapshot.duration;
-    final position = snapshot.position > duration
-        ? duration
-        : snapshot.position;
+    final position = isRadio || snapshot.position <= duration
+        ? snapshot.position
+        : duration;
 
     return Material(
       color: Theme.of(context).scaffoldBackgroundColor,
@@ -54,18 +56,25 @@ class PlaybackDock extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    [
-                      track.title ?? track.sourcePath,
-                      if (track.artist case final artist?
-                          when artist.trim().isNotEmpty)
-                        artist,
-                    ].join('  •  '),
+                    isRadio
+                        ? [
+                            station.name,
+                            if (station.genre case final genre?
+                                when genre.trim().isNotEmpty)
+                              genre,
+                          ].join('  •  ')
+                        : [
+                            track!.title ?? track.sourcePath,
+                            if (track.artist case final artist?
+                                when artist.trim().isNotEmpty)
+                              artist,
+                          ].join('  •  '),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontWeight: FontWeight.w800),
                   ),
                 ),
-                if (!compact) ...[
+                if (!compact && !isRadio) ...[
                   IconButton(
                     tooltip: 'Previous',
                     onPressed: playback.skipPrevious,
@@ -86,37 +95,59 @@ class PlaybackDock extends StatelessWidget {
                     icon: const Icon(Icons.skip_next),
                   ),
                 ],
+                if (!compact && isRadio)
+                  IconButton(
+                    tooltip: snapshot.isPlaying ? 'Pause' : 'Play',
+                    onPressed: snapshot.isPlaying
+                        ? playback.pause
+                        : playback.resume,
+                    icon: Icon(
+                      snapshot.isPlaying ? Icons.pause : Icons.play_arrow,
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 4),
-            Text(
-              'Waveform / spectrum visualizer',
-              style: Theme.of(context).textTheme.labelMedium,
-            ),
-            PlaybackVisualizer(
-              snapshot: snapshot,
-              audioAnalysis: audioAnalysis,
-              realtimeSpectrum: realtimeSpectrum,
-            ),
-            Slider(
-              value: duration.inMilliseconds == 0
-                  ? 0
-                  : position.inMilliseconds.toDouble(),
-              max: duration.inMilliseconds == 0
-                  ? 1
-                  : duration.inMilliseconds.toDouble(),
-              onChanged: duration.inMilliseconds == 0
-                  ? null
-                  : (value) =>
-                        playback.seek(Duration(milliseconds: value.round())),
-            ),
+            if (!isRadio) ...[
+              Text(
+                'Waveform / spectrum visualizer',
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+              PlaybackVisualizer(
+                snapshot: snapshot,
+                audioAnalysis: audioAnalysis,
+                realtimeSpectrum: realtimeSpectrum,
+              ),
+              Slider(
+                value: duration.inMilliseconds == 0
+                    ? 0
+                    : position.inMilliseconds.toDouble(),
+                max: duration.inMilliseconds == 0
+                    ? 1
+                    : duration.inMilliseconds.toDouble(),
+                onChanged: duration.inMilliseconds == 0
+                    ? null
+                    : (value) =>
+                          playback.seek(Duration(milliseconds: value.round())),
+              ),
+            ] else
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  station.description ?? 'Live internet radio',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
             Row(
               children: [
-                IconButton(
-                  tooltip: 'Previous',
-                  onPressed: playback.skipPrevious,
-                  icon: const Icon(Icons.skip_previous),
-                ),
+                if (!isRadio)
+                  IconButton(
+                    tooltip: 'Previous',
+                    onPressed: playback.skipPrevious,
+                    icon: const Icon(Icons.skip_previous),
+                  ),
                 Text(
                   _formatDuration(position),
                   style: Theme.of(context).textTheme.bodySmall,
@@ -137,27 +168,30 @@ class PlaybackDock extends StatelessWidget {
                   onPressed: playback.stop,
                   icon: const Icon(Icons.stop),
                 ),
-                IconButton(
-                  tooltip: 'Next',
-                  onPressed: playback.skipNext,
-                  icon: const Icon(Icons.skip_next),
-                ),
-                IconButton(
-                  tooltip: 'Shuffle',
-                  onPressed: playback.toggleShuffle,
-                  color: snapshot.shuffleEnabled
-                      ? Theme.of(context).colorScheme.primary
-                      : null,
-                  icon: const Icon(Icons.shuffle),
-                ),
-                IconButton(
-                  tooltip: 'Repeat',
-                  onPressed: playback.toggleRepeat,
-                  color: snapshot.repeatEnabled
-                      ? Theme.of(context).colorScheme.primary
-                      : null,
-                  icon: const Icon(Icons.repeat),
-                ),
+                if (!isRadio)
+                  IconButton(
+                    tooltip: 'Next',
+                    onPressed: playback.skipNext,
+                    icon: const Icon(Icons.skip_next),
+                  ),
+                if (!isRadio)
+                  IconButton(
+                    tooltip: 'Shuffle',
+                    onPressed: playback.toggleShuffle,
+                    color: snapshot.shuffleEnabled
+                        ? Theme.of(context).colorScheme.primary
+                        : null,
+                    icon: const Icon(Icons.shuffle),
+                  ),
+                if (!isRadio)
+                  IconButton(
+                    tooltip: 'Repeat',
+                    onPressed: playback.toggleRepeat,
+                    color: snapshot.repeatEnabled
+                        ? Theme.of(context).colorScheme.primary
+                        : null,
+                    icon: const Icon(Icons.repeat),
+                  ),
                 IconButton(
                   tooltip: snapshot.isMuted ? 'Unmute' : 'Mute',
                   onPressed: playback.toggleMute,

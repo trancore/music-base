@@ -1,11 +1,14 @@
 import '../library/library_track.dart';
+import '../radio/internet_radio_station.dart';
 
 class PlaybackSnapshot {
   const PlaybackSnapshot({
     this.currentTrack,
+    this.currentRadioStation,
     this.position = Duration.zero,
     this.duration = Duration.zero,
     this.isPlaying = false,
+    this.isLoading = false,
     this.volume = 1,
     this.isMuted = false,
     this.queue = const [],
@@ -17,9 +20,11 @@ class PlaybackSnapshot {
   });
 
   final LibraryTrack? currentTrack;
+  final InternetRadioStation? currentRadioStation;
   final Duration position;
   final Duration duration;
   final bool isPlaying;
+  final bool isLoading;
   final double volume;
   final bool isMuted;
   final List<LibraryTrack> queue;
@@ -34,6 +39,8 @@ abstract interface class PlaybackService {
   PlaybackSnapshot get snapshot;
 
   Future<void> playTrack(LibraryTrack track);
+
+  Future<void> playRadioStation(InternetRadioStation station);
 
   Future<void> playQueue(List<LibraryTrack> tracks, {int initialIndex = 0});
 
