@@ -7,6 +7,7 @@ import '../../app/playback_providers.dart';
 import '../../app/smb_providers.dart';
 import '../../domain/library/library_track.dart';
 import '../../domain/playback/playback_service.dart';
+import '../playback/playback_visualizer.dart';
 
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
@@ -238,6 +239,10 @@ class _PlaybackControls extends StatelessWidget {
               snapshot.currentTrack?.title ?? 'Playing',
               style: Theme.of(context).textTheme.titleMedium,
             ),
+            const SizedBox(height: 8),
+            const Text('Playback visualizer'),
+            const SizedBox(height: 4),
+            PlaybackVisualizer(snapshot: snapshot),
             if (snapshot.errorMessage case final message?)
               Text(
                 message,

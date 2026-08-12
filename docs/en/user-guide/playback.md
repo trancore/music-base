@@ -2,7 +2,7 @@
 
 Select a FLAC or MP3 file from the library to play it. In addition to local files, tracks on the configured SMB share can be played directly. The current implementation supports play, pause, stop, seeking, previous/next track, volume control, and mute.
 
-Use “Play library” to add the whole library to the playback queue. The queue supports previous/next navigation, shuffle, and repeat. On the Playlists screen, save the scanned library as a named playlist and play or delete it later. Playback errors are shown in the UI so another track can be selected without closing the app. The visualizer and spectrum analyzer will be added in later features.
+Use “Play library” to add the whole library to the playback queue. The queue supports previous/next navigation, shuffle, and repeat. On the Playlists screen, save the scanned library as a named playlist and play or delete it later. Playback errors are shown in the UI so another track can be selected without closing the app. Playback controls include a visualizer synchronized with the current playback position. It indicates playback state and is not a real-time frequency spectrum analyzer.
 
 The playback queue is shown below the controls while tracks are queued. Select a track in the list to start playback from that position.
 
