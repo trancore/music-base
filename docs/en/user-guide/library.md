@@ -10,6 +10,6 @@ When artist or album information can be inferred, it is shown below the track ti
 
 Embedded album artwork up to 2 MB is cached with the library entry and shown as a thumbnail. Larger or unreadable artwork is skipped.
 
-If the selected location is unavailable or scanning fails, the app shows a recoverable error so it can be retried. After an SMB share has been tested, you can scan it from the home screen. SMB tracks can be played directly through range reads.
+If the selected location is unavailable or scanning fails, the app shows an error with a **Retry** button. After checking the source, retry the scan from the home screen. After an SMB share has been tested, you can scan it from the home screen. SMB tracks can be played directly through range reads.
 
 Cached information can be shown while the library location is unavailable, but playback requires access to the selected location.

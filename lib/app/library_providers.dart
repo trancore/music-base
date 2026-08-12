@@ -71,4 +71,14 @@ class LibraryNotifier extends AsyncNotifier<List<LibraryTrack>> {
       return _repository.scanSmbAndCache(source, password);
     });
   }
+
+  Future<void> rescan() async {
+    final path = sourcePath;
+    if (path == null || path.isEmpty) return;
+    if (path.startsWith('smb://')) {
+      await scanSmb();
+    } else {
+      await scanDirectory(path);
+    }
+  }
 }

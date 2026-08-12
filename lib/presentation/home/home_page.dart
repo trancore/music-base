@@ -117,6 +117,10 @@ class HomePage extends ConsumerWidget {
                 leading: const Icon(Icons.error_outline),
                 title: const Text('Library scan failed'),
                 subtitle: Text(library.error.toString()),
+                trailing: TextButton(
+                  onPressed: () => ref.read(libraryProvider.notifier).rescan(),
+                  child: const Text('Retry'),
+                ),
               ),
             )
           else if (tracks.isEmpty)
