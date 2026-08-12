@@ -14,6 +14,8 @@ class LibraryTracks extends Table {
 
   TextColumn get album => text().nullable()();
 
+  BlobColumn get artwork => blob().nullable()();
+
   DateTimeColumn get lastSeenAt => dateTime().nullable()();
 }
 
@@ -24,5 +26,15 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (Migrator m) => m.createAll(),
+    onUpgrade: (Migrator m, int from, int to) async {
+      if (from < 2) {
+        await m.addColumn(libraryTracks, libraryTracks.artwork);
+      }
+    },
+  );
 }

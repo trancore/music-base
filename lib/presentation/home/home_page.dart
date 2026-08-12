@@ -189,7 +189,16 @@ class _TrackTile extends StatelessWidget {
     ].whereType<String>().where((value) => value.trim().isNotEmpty).join(' · ');
 
     return ListTile(
-      leading: Icon(isCurrent ? Icons.graphic_eq : Icons.music_note),
+      leading: track.artwork == null
+          ? Icon(isCurrent ? Icons.graphic_eq : Icons.music_note)
+          : Image.memory(
+              track.artwork!,
+              width: 48,
+              height: 48,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) =>
+                  Icon(isCurrent ? Icons.graphic_eq : Icons.music_note),
+            ),
       title: Text(track.title ?? track.sourcePath),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

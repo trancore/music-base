@@ -16,7 +16,7 @@ Local file access, SMB access, audio playback, MusicBrainz integration, tag hand
 
 Settings are stored with SharedPreferences. Library cache data is stored in a Drift SQLite database; the initial schema provides a foundation for source path, title, artist, album, and last-seen timestamp. Audio files are never copied into the database. Files in the selected local directory or SMB share remain the source of truth.
 
-The local directory scanner walks subdirectories recursively and currently treats FLAC and MP3 files as library candidates. Local scans read embedded MP3 ID3 and FLAC Vorbis metadata through `audio_metadata_reader`, then fall back to path-derived metadata when tags are unavailable. Additional formats and tag parsing belong behind the scanner and metadata service boundaries.
+The local directory scanner walks subdirectories recursively and currently treats FLAC and MP3 files as library candidates. Local scans read embedded MP3 ID3 and FLAC Vorbis metadata through `audio_metadata_reader`, including artwork up to 2 MB, then fall back to path-derived metadata when tags are unavailable. Metadata and artwork are cached in the Drift library table. Additional formats and tag parsing belong behind the scanner and metadata service boundaries.
 
 Audio playback is accessed through the `PlaybackService` abstraction. The current implementation uses just_audio and its Windows implementation to play files by path. The UI observes service state instead of depending directly on the playback engine.
 

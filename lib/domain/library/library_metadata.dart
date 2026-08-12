@@ -1,11 +1,19 @@
+import 'dart:typed_data';
+
 import 'package:path/path.dart' as p;
 
 class LibraryMetadata {
-  const LibraryMetadata({required this.title, this.artist, this.album});
+  const LibraryMetadata({
+    required this.title,
+    this.artist,
+    this.album,
+    this.artwork,
+  });
 
   final String title;
   final String? artist;
   final String? album;
+  final Uint8List? artwork;
 }
 
 LibraryMetadata inferLibraryMetadata(String sourcePath, {String? libraryRoot}) {
