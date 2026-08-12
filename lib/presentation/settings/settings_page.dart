@@ -195,10 +195,7 @@ class _SmbConnectionFormState extends ConsumerState<SmbConnectionForm> {
   Widget build(BuildContext context) {
     final sourceState = ref.watch(smbSourceProvider);
     final source = sourceState.valueOrNull;
-    if (!_initialized && source != null) {
-      _setSource(source);
-      _initialized = true;
-    }
+    _restoreSourceIfNeeded(source);
 
     return Column(
       children: [
@@ -272,6 +269,12 @@ class _SmbConnectionFormState extends ConsumerState<SmbConnectionForm> {
     );
   }
 
+  void _restoreSourceIfNeeded(SmbSource? source) {
+    if (_initialized || source == null) return;
+    _setSource(source);
+    _initialized = true;
+  }
+
   Future<void> _testAndSave() async {
     final source = SmbSource(
       host: _hostController.text.trim(),
@@ -290,11 +293,25 @@ class _SmbConnectionFormState extends ConsumerState<SmbConnectionForm> {
     try {
       await ref.read(smbServiceProvider).testConnection(source, password);
       await ref.read(smbSourceProvider.notifier).save(source, password);
+      await ref.read(libraryProvider.notifier).scanSmb();
       if (!mounted) return;
+      final library = ref.read(libraryProvider);
+      if (library.hasError) {
+        setState(() {
+          _busy = false;
+          _success = false;
+          _message =
+              'SMB connection succeeded, but library scan failed: '
+              '${library.error}';
+        });
+        return;
+      }
       setState(() {
         _busy = false;
         _success = true;
-        _message = 'Connection succeeded and settings were saved.';
+        _message =
+            'Connection succeeded, settings were saved, and the SMB library '
+            'was scanned.';
       });
     } on Exception catch (error) {
       if (!mounted) return;

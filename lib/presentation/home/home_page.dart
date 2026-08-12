@@ -102,71 +102,71 @@ class _HomePageState extends ConsumerState<HomePage> {
                 ),
               ),
               Expanded(
-                child: ListView(
-                  padding: EdgeInsets.fromLTRB(
-                    horizontalPadding,
-                    0,
-                    horizontalPadding,
-                    28,
+                child: LayoutBuilder(
+                  builder: (context, contentConstraints) => ListView(
+                    padding: EdgeInsets.fromLTRB(
+                      horizontalPadding,
+                      0,
+                      horizontalPadding,
+                      28,
+                    ),
+                    children: [
+                      if (library.isLoading)
+                        const Center(child: CircularProgressIndicator())
+                      else if (library.hasError)
+                        Card(
+                          color: Theme.of(context).colorScheme.errorContainer,
+                          child: ListTile(
+                            leading: const Icon(Icons.error_outline),
+                            title: const Text('Library scan failed'),
+                            subtitle: Text(library.error.toString()),
+                            trailing: TextButton(
+                              onPressed: () =>
+                                  ref.read(libraryProvider.notifier).rescan(),
+                              child: const Text('Retry'),
+                            ),
+                          ),
+                        )
+                      else if (tracks.isEmpty)
+                        const Card(
+                          child: ListTile(
+                            leading: Icon(Icons.music_off),
+                            title: Text('No FLAC or MP3 files found'),
+                            subtitle: Text(
+                              'Choose a directory containing your music files.',
+                            ),
+                          ),
+                        )
+                      else if (filteredTracks.isEmpty)
+                        const Card(
+                          child: ListTile(
+                            leading: Icon(Icons.search_off),
+                            title: Text('No matching tracks'),
+                            subtitle: Text('Try a different search term.'),
+                          ),
+                        )
+                      else
+                        _TrackTable(
+                          tracks: filteredTracks,
+                          currentPath: snapshot.currentTrack?.sourcePath,
+                          availableWidth: constraints.maxWidth,
+                          availableHeight: contentConstraints.maxHeight,
+                          sortColumn: _sortColumn,
+                          sortAscending: _sortAscending,
+                          onSort: (column) {
+                            setState(() {
+                              if (_sortColumn == column) {
+                                _sortAscending = !_sortAscending;
+                              } else {
+                                _sortColumn = column;
+                                _sortAscending = true;
+                              }
+                            });
+                          },
+                          onDoubleTap: playback.playTrack,
+                        ),
+                    ],
                   ),
-                  children: [
-                    if (library.isLoading)
-                      const Center(child: CircularProgressIndicator())
-                    else if (library.hasError)
-                      Card(
-                        color: Theme.of(context).colorScheme.errorContainer,
-                        child: ListTile(
-                          leading: const Icon(Icons.error_outline),
-                          title: const Text('Library scan failed'),
-                          subtitle: Text(library.error.toString()),
-                          trailing: TextButton(
-                            onPressed: () =>
-                                ref.read(libraryProvider.notifier).rescan(),
-                            child: const Text('Retry'),
-                          ),
-                        ),
-                      )
-                    else if (tracks.isEmpty)
-                      const Card(
-                        child: ListTile(
-                          leading: Icon(Icons.music_off),
-                          title: Text('No FLAC or MP3 files found'),
-                          subtitle: Text(
-                            'Choose a directory containing your music files.',
-                          ),
-                        ),
-                      )
-                    else if (filteredTracks.isEmpty)
-                      const Card(
-                        child: ListTile(
-                          leading: Icon(Icons.search_off),
-                          title: Text('No matching tracks'),
-                          subtitle: Text('Try a different search term.'),
-                        ),
-                      )
-                    else
-                      _TrackTable(
-                        tracks: filteredTracks,
-                        currentPath: snapshot.currentTrack?.sourcePath,
-                        availableWidth: constraints.maxWidth,
-                        availableHeight: (constraints.maxHeight - 170)
-                            .clamp(180.0, double.infinity)
-                            .toDouble(),
-                        sortColumn: _sortColumn,
-                        sortAscending: _sortAscending,
-                        onSort: (column) {
-                          setState(() {
-                            if (_sortColumn == column) {
-                              _sortAscending = !_sortAscending;
-                            } else {
-                              _sortColumn = column;
-                              _sortAscending = true;
-                            }
-                          });
-                        },
-                        onDoubleTap: playback.playTrack,
-                      ),
-                  ],
                 ),
               ),
             ],

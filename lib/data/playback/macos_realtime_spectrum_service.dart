@@ -13,7 +13,6 @@ class MacosRealtimeSpectrumService implements RealtimeSpectrumService {
   final EventChannel _events;
   final MethodChannel _methods;
   final List<double> _pendingSamples = [];
-
   @override
   Stream<List<double>> get spectrumStream =>
       _events.receiveBroadcastStream().expand((event) {
@@ -27,8 +26,9 @@ class MacosRealtimeSpectrumService implements RealtimeSpectrumService {
       });
 
   @override
-  Future<void> start({int? audioSessionId}) =>
-      _methods.invokeMethod<void>('start');
+  Future<void> start({int? audioSessionId}) async {
+    await _methods.invokeMethod<void>('start');
+  }
 
   @override
   Future<void> stop() async {

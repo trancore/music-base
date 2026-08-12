@@ -8,7 +8,9 @@ import '../domain/library/smb_source.dart';
 import 'providers.dart';
 
 final secureStorageProvider = Provider<FlutterSecureStorage>((ref) {
-  return const FlutterSecureStorage();
+  return const FlutterSecureStorage(
+    mOptions: MacOsOptions(usesDataProtectionKeychain: false),
+  );
 });
 
 final smbSettingsRepositoryProvider = Provider<SmbSettingsRepository>((ref) {
