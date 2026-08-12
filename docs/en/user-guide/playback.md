@@ -13,3 +13,5 @@ On Android, playback continues in the background and exposes play/pause, previou
 ## Waveform / spectrum visualizer
 
 During playback, the visualizer displays the audio state as 32 horizontal bars. When available, it uses a precomputed waveform from the track and a live frequency spectrum captured during playback. If analysis or live capture is unavailable, it falls back to a playback-position and animation-based display. Processing stays in memory and does not create recording files.
+
+On desktop, the playback queue appears at the bottom of the sidebar. Select a queued track to start playback from that track. On mobile, playback is centered around the playback dock.

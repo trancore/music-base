@@ -5,7 +5,6 @@ import '../../app/library_providers.dart';
 import '../../app/playback_providers.dart';
 import '../../domain/library/library_search.dart';
 import '../../domain/library/library_track.dart';
-import '../../domain/playback/playback_service.dart';
 
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
@@ -37,13 +36,10 @@ class _HomePageState extends ConsumerState<HomePage> {
       _sortColumn,
       _sortAscending,
     );
+    final isCompact = MediaQuery.sizeOf(context).width < 700;
 
     return Scaffold(
-      appBar: AppBar(
-        title: MediaQuery.sizeOf(context).width < 700
-            ? const Text('Music Base')
-            : const SizedBox.shrink(),
-      ),
+      appBar: isCompact ? AppBar(title: const Text('Music Base')) : null,
       body: LayoutBuilder(
         builder: (context, constraints) {
           final horizontalPadding = constraints.maxWidth < 700 ? 16.0 : 32.0;
@@ -153,6 +149,9 @@ class _HomePageState extends ConsumerState<HomePage> {
                         tracks: filteredTracks,
                         currentPath: snapshot.currentTrack?.sourcePath,
                         availableWidth: constraints.maxWidth,
+                        availableHeight: (constraints.maxHeight - 170)
+                            .clamp(180.0, double.infinity)
+                            .toDouble(),
                         sortColumn: _sortColumn,
                         sortAscending: _sortAscending,
                         onSort: (column) {
@@ -167,10 +166,6 @@ class _HomePageState extends ConsumerState<HomePage> {
                         },
                         onDoubleTap: playback.playTrack,
                       ),
-                    if (snapshot.queue.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      _QueuePanel(playback: playback, snapshot: snapshot),
-                    ],
                   ],
                 ),
               ),
@@ -240,6 +235,7 @@ class _TrackTable extends StatelessWidget {
     required this.tracks,
     required this.currentPath,
     required this.availableWidth,
+    required this.availableHeight,
     required this.sortColumn,
     required this.sortAscending,
     required this.onSort,
@@ -249,6 +245,7 @@ class _TrackTable extends StatelessWidget {
   final List<LibraryTrack> tracks;
   final String? currentPath;
   final double availableWidth;
+  final double availableHeight;
   final int sortColumn;
   final bool sortAscending;
   final ValueChanged<int> onSort;
@@ -257,64 +254,78 @@ class _TrackTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final borderColor = Theme.of(context).dividerColor;
+    const columnWidths = {
+      0: FixedColumnWidth(64),
+      1: FlexColumnWidth(2.4),
+      2: FlexColumnWidth(1.5),
+      3: FlexColumnWidth(1.5),
+      4: FlexColumnWidth(2.2),
+    };
+    final tableWidth = availableWidth > 860 ? availableWidth : 860.0;
+    final header = Table(
+      columnWidths: columnWidths,
+      border: TableBorder(bottom: BorderSide(color: borderColor)),
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      children: [
+        TableRow(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          ),
+          children: [
+            const _TableHeader(label: '#'),
+            _TableHeader(
+              label: 'Title',
+              onTap: () => onSort(0),
+              sorted: sortColumn == 0,
+              ascending: sortAscending,
+            ),
+            _TableHeader(
+              label: 'Artist',
+              onTap: () => onSort(1),
+              sorted: sortColumn == 1,
+              ascending: sortAscending,
+            ),
+            _TableHeader(
+              label: 'Album',
+              onTap: () => onSort(2),
+              sorted: sortColumn == 2,
+              ascending: sortAscending,
+            ),
+            _TableHeader(
+              label: 'Source',
+              onTap: () => onSort(3),
+              sorted: sortColumn == 3,
+              ascending: sortAscending,
+            ),
+          ],
+        ),
+      ],
+    );
+    final rows = Table(
+      columnWidths: columnWidths,
+      border: TableBorder(horizontalInside: BorderSide(color: borderColor)),
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      children: [
+        for (var index = 0; index < tracks.length; index++)
+          _trackRow(
+            context,
+            tracks[index],
+            index,
+            currentPath == tracks[index].sourcePath,
+          ),
+      ],
+    );
     return Card(
       clipBehavior: Clip.antiAlias,
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: SizedBox(
-          width: availableWidth > 860 ? availableWidth : 860,
-          child: Table(
-            columnWidths: const {
-              0: FixedColumnWidth(64),
-              1: FlexColumnWidth(2.4),
-              2: FlexColumnWidth(1.5),
-              3: FlexColumnWidth(1.5),
-              4: FlexColumnWidth(2.2),
-            },
-            border: TableBorder(
-              horizontalInside: BorderSide(color: borderColor),
-            ),
-            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+          width: tableWidth,
+          height: availableHeight,
+          child: Column(
             children: [
-              TableRow(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                ),
-                children: [
-                  const _TableHeader(label: '#'),
-                  _TableHeader(
-                    label: 'Title',
-                    onTap: () => onSort(0),
-                    sorted: sortColumn == 0,
-                    ascending: sortAscending,
-                  ),
-                  _TableHeader(
-                    label: 'Artist',
-                    onTap: () => onSort(1),
-                    sorted: sortColumn == 1,
-                    ascending: sortAscending,
-                  ),
-                  _TableHeader(
-                    label: 'Album',
-                    onTap: () => onSort(2),
-                    sorted: sortColumn == 2,
-                    ascending: sortAscending,
-                  ),
-                  _TableHeader(
-                    label: 'Source',
-                    onTap: () => onSort(3),
-                    sorted: sortColumn == 3,
-                    ascending: sortAscending,
-                  ),
-                ],
-              ),
-              for (var index = 0; index < tracks.length; index++)
-                _trackRow(
-                  context,
-                  tracks[index],
-                  index,
-                  currentPath == tracks[index].sourcePath,
-                ),
+              header,
+              Expanded(child: SingleChildScrollView(child: rows)),
             ],
           ),
         ),
@@ -438,47 +449,6 @@ class _TableHeader extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _QueuePanel extends StatelessWidget {
-  const _QueuePanel({required this.playback, required this.snapshot});
-
-  final PlaybackService playback;
-  final PlaybackSnapshot snapshot;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: ExpansionTile(
-        initiallyExpanded: true,
-        leading: const Icon(Icons.queue_music),
-        title: const Text('Playback queue'),
-        subtitle: Text('${snapshot.queue.length} tracks'),
-        children: [
-          for (var index = 0; index < snapshot.queue.length; index++)
-            ListTile(
-              selected: index == snapshot.currentIndex,
-              leading: Icon(
-                index == snapshot.currentIndex
-                    ? Icons.play_arrow
-                    : Icons.music_note_outlined,
-              ),
-              title: Text(
-                snapshot.queue[index].title ?? snapshot.queue[index].sourcePath,
-              ),
-              subtitle: Text(
-                snapshot.queue[index].artist ??
-                    snapshot.queue[index].sourcePath,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              onTap: () =>
-                  playback.playQueue(snapshot.queue, initialIndex: index),
-            ),
-        ],
       ),
     );
   }

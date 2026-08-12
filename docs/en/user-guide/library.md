@@ -6,6 +6,8 @@ The paths and basic track information are cached in the local database. The sele
 
 Use the **Search library** field on the home screen to filter the cached tracks by title, artist, album, or file path. Search is case-insensitive and applies immediately while typing. The track list is a table: click the Title, Artist, Album, or Source header to toggle ascending and descending order. Double-click a track to play it.
 
+The library heading, search field, and table header stay fixed while browsing. When there are many tracks, only the track rows scroll inside the table.
+
 When artist or album information can be inferred, it is shown in the library table. The source path remains visible as a secondary field. The artwork column keeps a fixed width when artwork is unavailable.
 
 Embedded album artwork up to 2 MB is cached with the library entry and shown as a thumbnail. Larger or unreadable artwork is skipped.
