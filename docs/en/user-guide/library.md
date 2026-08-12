@@ -4,7 +4,7 @@ Select a local music directory from Settings and the app scans it recursively. F
 
 The paths and basic track information are cached in the local database. The selected library location remains the source of truth; audio files are never copied into the database.
 
-Use the **Search library** field on the home screen to filter the cached tracks by title, artist, album, or file path. Search is case-insensitive and applies immediately while typing.
+The library search field on the home screen matches cached tracks by title, artist, album, or source path case-insensitively and updates while typing.
 
 When artist or album information can be inferred, it is shown below the track title in the library list. The source path remains visible as a secondary line.
 

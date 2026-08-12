@@ -32,9 +32,9 @@ set(CMAKE_CXX_FLAGS_PROFILE "${CMAKE_CXX_FLAGS_RELEASE}")
 # Use Unicode for all projects.
 add_definitions(-DUNICODE -D_UNICODE)
 
-# just_audio_windows 0.2.3 still includes the deprecated MSVC
-# <experimental/coroutine> header. Keep the current dependency compatible
-# with recent Visual Studio toolchains until the plugin migrates to <coroutine>.
+# just_audio_windows currently includes Microsoft's deprecated experimental
+# coroutine header. Keep the Windows build compatible with newer MSVC versions
+# until the plugin migrates to the standard C++20 coroutine header.
 add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
 
 # Compilation settings that should be applied to most targets.
