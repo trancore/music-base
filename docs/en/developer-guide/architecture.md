@@ -33,3 +33,5 @@ CD detection and ripping are Windows-specific. Android provides local directory 
 CD output plans are created by `CdImportPlanner`. It validates the MusicBrainz track count against the CD tracks, derives FLAC/MP3 filenames and tag candidates, and refuses existing target paths before any file is written. Drive reading and encoding are invoked through a Windows-specific service.
 
 Windows CD drive detection is isolated behind `CdDriveService`. The Windows implementation queries drive letters, device names, and media-loaded state from PowerShell's `Win32_CDROMDrive`. Android and non-Windows environments report the capability as unavailable.
+
+CD track listing is isolated behind `CdTrackService`; the Windows implementation obtains track count and lengths from the CD Audio MCI API. MCI and PowerShell execution remain in the Windows data layer, while shared code receives only `CdTrack` models.

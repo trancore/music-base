@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/cd_providers.dart';
 import '../../domain/cd/cd_drive_service.dart';
+import '../../domain/cd/cd_import_plan.dart';
 
 class CdDrivePage extends ConsumerStatefulWidget {
   const CdDrivePage({super.key});
@@ -19,6 +20,7 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
   String? _error;
   String? _statusMessage;
   List<CdDrive> _drives = const [];
+  final Map<String, Future<List<CdTrack>>> _trackRequests = {};
 
   @override
   void initState() {
@@ -84,19 +86,14 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
               ),
             )
           else
-            ..._drives.map(
-              (drive) => Card(
-                child: ListTile(
-                  leading: Icon(
-                    drive.mediaLoaded ? Icons.album : Icons.album_outlined,
-                  ),
-                  title: Text('${drive.driveLetter} ${drive.name}'),
-                  subtitle: Text(
-                    drive.mediaLoaded ? 'Media loaded' : 'No media loaded',
-                  ),
-                ),
-              ),
-            ),
+            ..._drives.map((drive) {
+              final tracksFuture = drive.mediaLoaded
+                  ? (_trackRequests[drive.deviceId] ??= ref
+                        .read(cdTrackServiceProvider)
+                        .readTracks(drive))
+                  : null;
+              return _CdDriveCard(drive, tracksFuture: tracksFuture);
+            }),
         ],
       ),
     );
@@ -125,6 +122,12 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
         (drive) =>
             !drive.mediaLoaded && previousMedia[drive.driveLetter] == true,
       );
+      _trackRequests.removeWhere(
+        (deviceId, _) => drives.every((drive) => drive.deviceId != deviceId),
+      );
+      for (final drive in drives.where((drive) => !drive.mediaLoaded)) {
+        _trackRequests.remove(drive.deviceId);
+      }
       setState(() {
         _loading = false;
         _drives = drives;
@@ -142,4 +145,65 @@ class _CdDrivePageState extends ConsumerState<CdDrivePage> {
       });
     }
   }
+}
+
+class _CdDriveCard extends StatelessWidget {
+  const _CdDriveCard(this.drive, {required this.tracksFuture});
+
+  final CdDrive drive;
+  final Future<List<CdTrack>>? tracksFuture;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ExpansionTile(
+        leading: Icon(drive.mediaLoaded ? Icons.album : Icons.album_outlined),
+        title: Text('${drive.driveLetter} ${drive.name}'),
+        subtitle: Text(drive.mediaLoaded ? 'Media loaded' : 'No media loaded'),
+        children: [
+          if (tracksFuture != null)
+            FutureBuilder<List<CdTrack>>(
+              future: tracksFuture,
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return ListTile(
+                    leading: const Icon(Icons.error_outline),
+                    title: Text('Unable to read tracks: ${snapshot.error}'),
+                  );
+                }
+                if (!snapshot.hasData) {
+                  return const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: CircularProgressIndicator(),
+                  );
+                }
+                if (snapshot.data!.isEmpty) {
+                  return const ListTile(title: Text('No tracks found.'));
+                }
+                return Column(
+                  children: [
+                    for (final track in snapshot.data!)
+                      ListTile(
+                        dense: true,
+                        leading: Text('${track.number}'),
+                        title: Text(
+                          track.duration == null
+                              ? 'Track ${track.number}'
+                              : 'Track ${track.number} · ${_formatTrackDuration(track.duration!)}',
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+String _formatTrackDuration(Duration duration) {
+  final minutes = duration.inMinutes;
+  final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+  return '$minutes:$seconds';
 }
