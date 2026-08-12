@@ -30,10 +30,12 @@ SMB接続は`SmbService`の抽象インターフェースを通じて利用し�
 
 CD検出とリッピングはWindows固有機能です。AndroidではローカルディレクトリまたはSMB共有の参照と再生を提供し、Windows固有のCD処理を共有ドメインコードへ直接混在させません。
 
-CD取り込みの出力計画は`CdImportPlanner`で作成します。MusicBrainzの曲順とCDトラック数を検証し、FLAC／MP3の拡張子、タグ候補、出力パスを組み立てます。既存パスの上書きは計画段階で拒否し、実ドライブの読み取りとエンコードはWindows固有のサービスから呼び出します。
+CD取り込みの出力計画は`CdImportPlanner`で作成します。MusicBrainz releaseの総トラック数と物理CDのトラック数を検証したうえで、選択された一部の曲を曲順に対応付け、FLAC／MP3の拡張子、タグ候補、出力パスを組み立てます。既存パスの上書きは計画段階で拒否し、実ドライブの読み取りとエンコードはWindows固有のサービスから呼び出します。
 
 WindowsのCDドライブ検出は`CdDriveService`の境界で扱います。Windows実装はPowerShellから`Win32_CDROMDrive`のドライブ文字、デバイス名、メディア挿入状態を取得します。Androidや非Windows環境では利用可能性をエラーとして返します。
 
 CDトラック一覧は`CdTrackService`で扱い、Windows実装はCD AudioのMCI APIからトラック数と長さを取得します。MCI呼び出しとPowerShell実行はWindowsデータ層に閉じ込め、共有層は`CdTrack`モデルだけを受け取ります。
 
-音声データの取り込みは`CdRippingService`で扱います。Windows実装は外部`ffmpeg.exe`へCDドライブ、トラック番号、FLAC／MP3 codecを渡し、`-n`と事前存在確認で上書きを防止します。ffmpeg未導入や実行失敗は通常の復旧可能なエラーとして扱います。
+音声データの取り込みは`CdRippingService`で扱います。Windows実装は外部`ffmpeg.exe`へCDドライブ、トラック番号、FLAC／MP3 codecを渡し、`-n`と事前存在確認で上書きを防止します。`CdRippingCancellationToken`により実行中のプロセスを停止できます。ffmpeg未導入や実行失敗は通常の復旧可能なエラーとして扱います。
+
+取り込みが正常に完了した後、出力先が設定済みのローカルライブラリ配下であれば、`CdDrivePage`がライブラリを再スキャンします。SMB参照先や設定済みライブラリ外の出力先は自動変更しません。

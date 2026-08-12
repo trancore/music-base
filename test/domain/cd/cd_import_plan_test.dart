@@ -46,7 +46,7 @@ void main() {
     expect(
       () => planner.create(
         release: release,
-        cdTracks: const [CdTrack(number: 1)],
+        cdTracks: const [CdTrack(number: 3)],
         outputDirectory: '/Music',
         format: CdImportFormat.mp3,
       ),
@@ -61,6 +61,45 @@ void main() {
         existingPaths: {'/Music/Artist/Album _ Name/01 - Intro.mp3'},
       ),
       throwsA(isA<CdImportPlanningException>()),
+    );
+  });
+
+  test('maps a selected CD track to its release track position', () {
+    const planner = CdImportPlanner();
+    final plan = planner.create(
+      release: release,
+      cdTracks: const [CdTrack(number: 2)],
+      outputDirectory: '/Music',
+      format: CdImportFormat.flac,
+    );
+
+    expect(plan.tracks, hasLength(1));
+    expect(plan.tracks.single.sourceTrackNumber, 2);
+    expect(plan.tracks.single.title, 'Song: One');
+    expect(
+      plan.tracks.single.targetPath,
+      '/Music/Artist/Album _ Name/02 - Song_ One.flac',
+    );
+  });
+
+  test('rejects a release whose total track count differs from the CD', () {
+    const planner = CdImportPlanner();
+
+    expect(
+      () => planner.create(
+        release: release,
+        cdTracks: const [CdTrack(number: 1)],
+        cdTrackCount: 1,
+        outputDirectory: '/Music',
+        format: CdImportFormat.flac,
+      ),
+      throwsA(
+        isA<CdImportPlanningException>().having(
+          (error) => error.message,
+          'message',
+          contains('The CD has 1 tracks, but the release has 2'),
+        ),
+      ),
     );
   });
 }
