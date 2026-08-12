@@ -2,13 +2,18 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import 'audio_metadata_reader.dart';
 import '../../domain/library/library_errors.dart';
 import '../../domain/library/library_metadata.dart';
 import '../../domain/library/library_scanner.dart';
 import '../../domain/library/library_track.dart';
 
 class LocalDirectoryLibraryScanner implements LibraryScanner {
-  const LocalDirectoryLibraryScanner();
+  const LocalDirectoryLibraryScanner({
+    this._metadataReader = const PackageAudioMetadataReader(),
+  });
+
+  final PackageAudioMetadataReader _metadataReader;
 
   static const supportedExtensions = {'.flac', '.mp3'};
 
@@ -32,10 +37,11 @@ class LocalDirectoryLibraryScanner implements LibraryScanner {
           continue;
         }
 
-        final metadata = inferLibraryMetadata(
+        final inferredMetadata = inferLibraryMetadata(
           entity.path,
           libraryRoot: rootPath,
         );
+        final metadata = _metadataReader.read(entity, inferredMetadata);
         tracks.add(
           LibraryTrack(
             sourcePath: entity.path,
