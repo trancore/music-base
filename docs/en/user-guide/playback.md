@@ -15,3 +15,7 @@ On Android, playback continues in the background and exposes play/pause, previou
 During playback, the visualizer displays logarithmically spaced frequency bands. On desktop, it applies a Hann window to a 2048-sample FFT, maps 20 Hz–20 kHz into 128 bands, converts magnitudes to dB, and smooths the result over time. Android FFT data is converted to the same display shape. If analysis or live capture is unavailable, it falls back to a playback-position and animation-based display. Processing stays in memory and does not create recording files.
 
 On desktop, the playback queue appears at the bottom of the sidebar. Select a queued track to start playback from that track. On mobile, playback is centered around the playback dock.
+
+Search by track title, artist, album, or source path before selecting a track to play.
+
+Playback errors are shown in the UI so another track can be selected without closing the app. Volume, queue, playlists, shuffle, repeat, the visualizer, and the spectrum analyzer will be added in later features.
