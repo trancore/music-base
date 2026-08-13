@@ -240,8 +240,14 @@ class _SmbConnectionFormState extends ConsumerState<SmbConnectionForm> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.network_check),
-                label: const Text('Test connection and save'),
+                label: const Text('Connect, save, and scan'),
               ),
+              if (source != null)
+                OutlinedButton.icon(
+                  onPressed: _busy ? null : _scanLibrary,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Scan library'),
+                ),
               if (source != null)
                 OutlinedButton.icon(
                   onPressed: _busy ? null : _clearSettings,
@@ -296,22 +302,14 @@ class _SmbConnectionFormState extends ConsumerState<SmbConnectionForm> {
       await ref.read(libraryProvider.notifier).scanSmb();
       if (!mounted) return;
       final library = ref.read(libraryProvider);
-      if (library.hasError) {
-        setState(() {
-          _busy = false;
-          _success = false;
-          _message =
-              'SMB connection succeeded, but library scan failed: '
-              '${library.error}';
-        });
-        return;
-      }
       setState(() {
         _busy = false;
-        _success = true;
-        _message =
-            'Connection succeeded, settings were saved, and the SMB library '
-            'was scanned.';
+        _success = !library.hasError;
+        _message = library.hasError
+            ? 'Connection succeeded, but the library scan failed: '
+                  '${library.error}'
+            : 'Connection succeeded. Found '
+                  '${library.valueOrNull?.length ?? 0} FLAC/MP3 files.';
       });
     } on Exception catch (error) {
       if (!mounted) return;
@@ -328,6 +326,23 @@ class _SmbConnectionFormState extends ConsumerState<SmbConnectionForm> {
     _shareController.text = source.share;
     _subfolderController.text = source.subfolder;
     _usernameController.text = source.username;
+  }
+
+  Future<void> _scanLibrary() async {
+    setState(() {
+      _busy = true;
+      _message = null;
+    });
+    await ref.read(libraryProvider.notifier).scanSmb();
+    if (!mounted) return;
+    final library = ref.read(libraryProvider);
+    setState(() {
+      _busy = false;
+      _success = !library.hasError;
+      _message = library.hasError
+          ? 'Library scan failed: ${library.error}'
+          : 'Found ${library.valueOrNull?.length ?? 0} FLAC/MP3 files.';
+    });
   }
 
   Future<void> _clearSettings() async {

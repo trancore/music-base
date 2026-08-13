@@ -15,6 +15,7 @@ class HomePage extends ConsumerStatefulWidget {
 
 class _HomePageState extends ConsumerState<HomePage> {
   final _searchController = TextEditingController();
+  final _searchFocusNode = FocusNode();
   String _searchQuery = '';
   int _sortColumn = 0;
   bool _sortAscending = true;
@@ -22,6 +23,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -39,7 +41,18 @@ class _HomePageState extends ConsumerState<HomePage> {
     final isCompact = MediaQuery.sizeOf(context).width < 700;
 
     return Scaffold(
-      appBar: isCompact ? AppBar(title: const Text('Music Base')) : null,
+      appBar: isCompact
+          ? AppBar(
+              title: const Text('Library'),
+              actions: [
+                IconButton(
+                  tooltip: 'Search library',
+                  onPressed: () => _searchFocusNode.requestFocus(),
+                  icon: const Icon(Icons.search),
+                ),
+              ],
+            )
+          : null,
       body: LayoutBuilder(
         builder: (context, constraints) {
           final horizontalPadding = constraints.maxWidth < 700 ? 16.0 : 32.0;
@@ -72,6 +85,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                     Expanded(
                       child: TextField(
                         controller: _searchController,
+                        focusNode: _searchFocusNode,
                         decoration: InputDecoration(
                           hintText: 'Search title, artist, album...',
                           prefixIcon: const Icon(Icons.search),
@@ -145,7 +159,25 @@ class _HomePageState extends ConsumerState<HomePage> {
                             subtitle: Text('Try a different search term.'),
                           ),
                         )
-                      else
+                      else if (isCompact) ...[
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            '${filteredTracks.length} songs',
+                            style: Theme.of(context).textTheme.labelLarge
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                        ),
+                        _CompactTrackList(
+                          tracks: filteredTracks,
+                          currentPath: snapshot.currentTrack?.sourcePath,
+                          onPlay: playback.playTrack,
+                        ),
+                      ] else
                         _TrackTable(
                           tracks: filteredTracks,
                           currentPath: snapshot.currentTrack?.sourcePath,
@@ -175,6 +207,94 @@ class _HomePageState extends ConsumerState<HomePage> {
       ),
     );
   }
+}
+
+class _CompactTrackList extends StatelessWidget {
+  const _CompactTrackList({
+    required this.tracks,
+    required this.currentPath,
+    required this.onPlay,
+  });
+
+  final List<LibraryTrack> tracks;
+  final String? currentPath;
+  final ValueChanged<LibraryTrack> onPlay;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      for (final track in tracks)
+        Card(
+          margin: const EdgeInsets.only(bottom: 10),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: ListTile(
+            contentPadding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+            leading: Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                gradient: LinearGradient(
+                  colors: currentPath == track.sourcePath
+                      ? [
+                          Theme.of(context).colorScheme.primary,
+                          Theme.of(context).colorScheme.tertiary,
+                        ]
+                      : [
+                          Theme.of(context).colorScheme.surfaceContainerHighest,
+                          Theme.of(context).colorScheme.surfaceContainer,
+                        ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: track.artwork != null
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: Image.memory(
+                        track.artwork!,
+                        width: 52,
+                        height: 52,
+                        fit: BoxFit.cover,
+                      ),
+                    )
+                  : Icon(
+                      currentPath == track.sourcePath
+                          ? Icons.equalizer
+                          : Icons.music_note,
+                      color: currentPath == track.sourcePath
+                          ? Theme.of(context).colorScheme.onPrimary
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+            ),
+            title: Text(
+              track.title ?? track.sourcePath,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: Text(
+              [
+                if (track.artist case final artist?
+                    when artist.trim().isNotEmpty)
+                  artist,
+                if (track.album case final album? when album.trim().isNotEmpty)
+                  album,
+              ].join('  •  '),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            trailing: IconButton.filledTonal(
+              tooltip: 'Play',
+              onPressed: () => onPlay(track),
+              icon: const Icon(Icons.play_arrow),
+            ),
+            onTap: () => onPlay(track),
+          ),
+        ),
+    ],
+  );
 }
 
 class _PageIntro extends StatelessWidget {

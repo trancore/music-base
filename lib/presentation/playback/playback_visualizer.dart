@@ -12,12 +12,14 @@ class PlaybackVisualizer extends StatefulWidget {
     required this.snapshot,
     required this.audioAnalysis,
     required this.realtimeSpectrum,
+    this.height = 200,
     super.key,
   });
 
   final PlaybackSnapshot snapshot;
   final AudioAnalysisService audioAnalysis;
   final RealtimeSpectrumService realtimeSpectrum;
+  final double height;
 
   @override
   State<PlaybackVisualizer> createState() => _PlaybackVisualizerState();
@@ -75,7 +77,7 @@ class _PlaybackVisualizerState extends State<PlaybackVisualizer>
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) => SizedBox(
-        height: 200,
+        height: widget.height,
         width: double.infinity,
         child: CustomPaint(
           painter: _VisualizerPainter(

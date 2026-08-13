@@ -25,11 +25,15 @@ class SmbRemoteLocation {
     final uri = Uri.tryParse(sourcePath);
     if (uri == null || uri.scheme != 'smb' || uri.host.isEmpty) return null;
     final segments = uri.pathSegments;
-    if (segments.length < 3) return null;
+    // The first segment is the share and the remaining segment(s) form the
+    // file path. A file may live directly in the share root.
+    if (segments.length < 2) return null;
+    final filePath = segments.skip(1).join('/');
+    if (filePath.isEmpty) return null;
     return SmbRemoteLocation(
       host: uri.host,
       share: segments.first,
-      path: segments.skip(1).join('/'),
+      path: filePath,
     );
   }
 }

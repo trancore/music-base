@@ -1,0 +1,123 @@
+name: Release desktop installers
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Build Windows installer
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.44.0'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Windows release
+        shell: pwsh
+        env:
+          APP_VERSION: ${{ github.ref_name }}
+        run: |
+          $version = $env:APP_VERSION -replace '^v', ''
+          flutter build windows --release --build-name $version --build-number $env:GITHUB_RUN_NUMBER
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
+      - name: Build Windows installer
+        shell: pwsh
+        env:
+          APP_VERSION: ${{ github.ref_name }}
+        run: |
+          $version = $env:APP_VERSION -replace '^v', ''
+          New-Item -ItemType Directory -Force -Path dist/windows | Out-Null
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" packaging/windows/MusicBase.iss /ODist/windows "/DAppVersion=$version"
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: dist/windows/MusicBase-Setup.exe
+          if-no-files-found: error
+
+  macos:
+    name: Build macOS DMG
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.44.0'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build macOS release
+        env:
+          APP_VERSION: ${{ github.ref_name }}
+        run: |
+          version="${APP_VERSION#v}"
+          flutter build macos --release --build-name "$version" --build-number "$GITHUB_RUN_NUMBER"
+
+      - name: Create macOS DMG
+        run: |
+          rm -rf dist/macos
+          mkdir -p "dist/macos/dmg-root"
+          cp -R "build/macos/Build/Products/Release/music_base.app" "dist/macos/dmg-root/Music Base.app"
+          ln -s /Applications "dist/macos/dmg-root/Applications"
+          hdiutil create \
+            -volname "Music Base" \
+            -srcfolder "dist/macos/dmg-root" \
+            -ov \
+            -format UDZO \
+            "dist/macos/MusicBase.dmg"
+
+      - name: Upload macOS DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: dist/macos/MusicBase.dmg
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs: [windows, macos]
+    steps:
+      - name: Download installers
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*'
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            dist/* \
+            --repo "${{ github.repository }}" \
+            --title "Music Base ${{ github.ref_name }}" \
+            --generate-notes
