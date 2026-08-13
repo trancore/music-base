@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
 
@@ -8,7 +10,7 @@ import '../data/library/shared_preferences_library_repository.dart';
 import '../data/library/smb_library_scanner.dart';
 import '../domain/library/library_repository.dart';
 import '../domain/library/local_directory_access_service.dart';
-import '../domain/library/library_search.dart';
+import '../domain/library/library_query.dart';
 import '../domain/library/library_track.dart';
 import 'providers.dart';
 import 'smb_providers.dart';
@@ -44,21 +46,221 @@ final libraryProvider =
 
 final librarySearchQueryProvider = StateProvider<String>((ref) => '');
 
-final visibleLibraryTracksProvider = Provider<List<LibraryTrack>>((ref) {
-  final tracks = ref.watch(libraryProvider).valueOrNull ?? const [];
-  return filterLibraryTracks(tracks, ref.watch(librarySearchQueryProvider));
+final libraryArtworkProvider = FutureProvider.family<List<int>?, int>((
+  ref,
+  id,
+) {
+  return ref.watch(libraryRepositoryProvider).loadArtwork(id);
 });
+
+final libraryGroupsProvider =
+    AsyncNotifierProvider<LibraryGroupsNotifier, List<LibraryGroup>>(
+      LibraryGroupsNotifier.new,
+    );
+
+class LibraryGroupsNotifier extends AsyncNotifier<List<LibraryGroup>> {
+  late LibraryRepository _repository;
+  LibraryGroupKind kind = LibraryGroupKind.album;
+  String search = '';
+  int totalCount = 0;
+  LibraryGroupCursor? _nextCursor;
+  bool isLoadingMore = false;
+  int _queryGeneration = 0;
+
+  String? get _sourceKey => ref.read(libraryProvider.notifier).activeSourcePath;
+
+  @override
+  Future<List<LibraryGroup>> build() async {
+    _repository = ref.watch(libraryRepositoryProvider);
+    await ref.watch(libraryProvider.future);
+    final page = await _queryFirstPage(kind: kind, search: search);
+    _applyPage(page);
+    return page.items;
+  }
+
+  Future<LibraryGroupPage> _queryFirstPage({
+    required LibraryGroupKind kind,
+    required String search,
+  }) => _repository.queryGroups(
+    LibraryGroupQuery(kind: kind, sourceKey: _sourceKey, search: search),
+  );
+
+  void _applyPage(LibraryGroupPage page) {
+    totalCount = page.totalCount;
+    _nextCursor = page.nextCursor;
+  }
+
+  Future<void> setQuery({LibraryGroupKind? kind, String? search}) async {
+    this.kind = kind ?? this.kind;
+    this.search = search ?? this.search;
+    final generation = ++_queryGeneration;
+    isLoadingMore = false;
+    state = const AsyncLoading<List<LibraryGroup>>().copyWithPrevious(state);
+    try {
+      final page = await _queryFirstPage(kind: this.kind, search: this.search);
+      if (generation != _queryGeneration) return;
+      _applyPage(page);
+      state = AsyncData(page.items);
+    } catch (error, stackTrace) {
+      if (generation == _queryGeneration) {
+        state = AsyncError(error, stackTrace);
+      }
+    }
+  }
+
+  Future<void> loadNextPage() async {
+    final cursor = _nextCursor;
+    if (cursor == null || isLoadingMore) return;
+    final generation = _queryGeneration;
+    final currentKind = kind;
+    final currentSearch = search;
+    isLoadingMore = true;
+    try {
+      final page = await _repository.queryGroups(
+        LibraryGroupQuery(
+          kind: currentKind,
+          sourceKey: _sourceKey,
+          search: currentSearch,
+          cursor: cursor,
+        ),
+      );
+      if (generation != _queryGeneration) return;
+      _nextCursor = page.nextCursor;
+      totalCount = page.totalCount;
+      state = AsyncData([
+        ...state.valueOrNull ?? const <LibraryGroup>[],
+        ...page.items,
+      ]);
+    } finally {
+      isLoadingMore = false;
+    }
+  }
+}
 
 class LibraryNotifier extends AsyncNotifier<List<LibraryTrack>> {
   late final LibraryRepository _repository;
 
   String? sourcePath;
+  String? activeSourcePath;
+  LibraryQuery query = const LibraryQuery();
+  LibraryQuery get effectiveQuery => LibraryQuery(
+    sourceKey: activeSourcePath,
+    search: query.search,
+    sortField: query.sortField,
+    ascending: query.ascending,
+    album: query.album,
+    artist: query.artist,
+  );
+  int totalCount = 0;
+  LibraryCursor? _nextCursor;
+  bool isLoadingMore = false;
+  bool isRefreshing = false;
+  String? refreshWarning;
+  int _queryGeneration = 0;
 
   @override
   Future<List<LibraryTrack>> build() async {
     _repository = ref.watch(libraryRepositoryProvider);
     sourcePath = await _repository.loadSourcePath();
-    return _repository.loadTracks();
+    activeSourcePath = sourcePath;
+    final tracks = await _reloadFirstPage();
+    final refreshTimer = Timer(const Duration(seconds: 1), refreshInBackground);
+    ref.onDispose(refreshTimer.cancel);
+    return tracks;
+  }
+
+  Future<List<LibraryTrack>> _reloadFirstPage() async {
+    final page = await _repository.queryTracks(effectiveQuery);
+    _applyPage(page);
+    return page.items;
+  }
+
+  Future<void> _refreshVisiblePage() async {
+    final generation = ++_queryGeneration;
+    final page = await _repository.queryTracks(effectiveQuery);
+    if (generation != _queryGeneration) return;
+    _applyPage(page);
+    state = AsyncData(page.items);
+  }
+
+  void _applyPage(LibraryPage page) {
+    totalCount = page.totalCount;
+    _nextCursor = page.nextCursor;
+  }
+
+  Future<void> setQuery({
+    String? search,
+    LibrarySortField? sortField,
+    bool? ascending,
+    String? album,
+    String? artist,
+    bool clearGroup = false,
+  }) async {
+    final nextQuery = LibraryQuery(
+      sourceKey: activeSourcePath,
+      search: search ?? query.search,
+      sortField: sortField ?? query.sortField,
+      ascending: ascending ?? query.ascending,
+      album: clearGroup ? null : album ?? query.album,
+      artist: clearGroup ? null : artist ?? query.artist,
+    );
+    query = nextQuery;
+    final generation = ++_queryGeneration;
+    isLoadingMore = false;
+    state = const AsyncLoading<List<LibraryTrack>>().copyWithPrevious(state);
+    try {
+      final page = await _repository.queryTracks(effectiveQuery);
+      if (generation != _queryGeneration) return;
+      _applyPage(page);
+      state = AsyncData(page.items);
+    } catch (error, stackTrace) {
+      if (generation == _queryGeneration) {
+        state = AsyncError(error, stackTrace);
+      }
+    }
+  }
+
+  Future<void> setGroup(LibraryGroup? group) => setQuery(
+    search: '',
+    sortField: group == null
+        ? LibrarySortField.title
+        : group.kind == LibraryGroupKind.artist
+        ? LibrarySortField.album
+        : LibrarySortField.albumTrack,
+    ascending: true,
+    album: group?.kind == LibraryGroupKind.album ? group!.value : null,
+    artist: group?.kind == LibraryGroupKind.artist ? group!.value : null,
+    clearGroup: group == null,
+  );
+
+  Future<void> loadNextPage() async {
+    final cursor = _nextCursor;
+    if (cursor == null || isLoadingMore) return;
+    final generation = _queryGeneration;
+    final currentQuery = effectiveQuery;
+    isLoadingMore = true;
+    try {
+      final page = await _repository.queryTracks(
+        LibraryQuery(
+          sourceKey: currentQuery.sourceKey,
+          search: currentQuery.search,
+          sortField: currentQuery.sortField,
+          ascending: currentQuery.ascending,
+          cursor: cursor,
+          album: currentQuery.album,
+          artist: currentQuery.artist,
+        ),
+      );
+      if (generation != _queryGeneration) return;
+      _nextCursor = page.nextCursor;
+      totalCount = page.totalCount;
+      state = AsyncData([
+        ...state.valueOrNull ?? const <LibraryTrack>[],
+        ...page.items,
+      ]);
+    } finally {
+      isLoadingMore = false;
+    }
   }
 
   Future<void> chooseDirectory() async {
@@ -76,10 +278,11 @@ class LibraryNotifier extends AsyncNotifier<List<LibraryTrack>> {
   }
 
   Future<void> scanDirectory(String path) async {
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
-      sourcePath = path;
-      return _repository.scanAndCache(path);
+    sourcePath = path;
+    await _scanWithoutHidingCache(() async {
+      await _repository.scanAndCache(path);
+      ref.invalidate(libraryArtworkProvider);
+      activeSourcePath = path;
     });
   }
 
@@ -88,11 +291,35 @@ class LibraryNotifier extends AsyncNotifier<List<LibraryTrack>> {
     if (source == null) return;
     final password =
         await ref.read(smbSettingsRepositoryProvider).loadPassword() ?? '';
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
-      sourcePath = 'smb://${source.host}/${source.share}';
-      return _repository.scanSmbAndCache(source, password);
+    final path = 'smb://${source.host}/${source.share}';
+    sourcePath = path;
+    await _scanWithoutHidingCache(() async {
+      await _repository.scanSmbAndCache(source, password);
+      ref.invalidate(libraryArtworkProvider);
+      activeSourcePath = path;
     });
+  }
+
+  Future<void> _scanWithoutHidingCache(Future<void> Function() scan) async {
+    if (isRefreshing) return;
+    final cached = state.valueOrNull;
+    isRefreshing = true;
+    refreshWarning = null;
+    if (cached != null) state = AsyncData(cached);
+    try {
+      await scan();
+      await _refreshVisiblePage();
+    } catch (error, stackTrace) {
+      refreshWarning = 'Library scan failed: $error';
+      state = cached != null
+          ? AsyncData(cached)
+          : AsyncError(error, stackTrace);
+    } finally {
+      isRefreshing = false;
+      if (state case AsyncData(value: final visible)) {
+        state = AsyncData(visible);
+      }
+    }
   }
 
   Future<void> rescan() async {
@@ -102,6 +329,57 @@ class LibraryNotifier extends AsyncNotifier<List<LibraryTrack>> {
       await scanSmb();
     } else {
       await scanDirectory(path);
+    }
+  }
+
+  Future<void> refreshInBackground() async {
+    final primary = sourcePath;
+    if (primary == null || primary.isEmpty || isRefreshing) return;
+    isRefreshing = true;
+    refreshWarning = null;
+    final cached = state.valueOrNull;
+    if (cached != null) state = AsyncData(cached);
+    try {
+      if (primary.startsWith('smb://')) {
+        final source = await ref.read(smbSourceProvider.future);
+        if (source == null) throw StateError('SMB library is not configured.');
+        final password =
+            await ref.read(smbSettingsRepositoryProvider).loadPassword() ?? '';
+        await _repository.scanSmbAndCache(source, password);
+        ref.invalidate(libraryArtworkProvider);
+        activeSourcePath = primary;
+      } else {
+        await _repository.scanAndCache(primary);
+        ref.invalidate(libraryArtworkProvider);
+        activeSourcePath = primary;
+      }
+      await _refreshVisiblePage();
+    } on Object {
+      if (primary.startsWith('smb://')) {
+        final local = await _repository.loadLastLocalSourcePath();
+        if (local != null && local.isNotEmpty) {
+          try {
+            await _repository.scanFallbackLocal(local);
+            ref.invalidate(libraryArtworkProvider);
+            activeSourcePath = local;
+            refreshWarning =
+                'SMB library is unavailable. Using the local library.';
+            await _refreshVisiblePage();
+            return;
+          } on Object {
+            // Report the common terminal state below.
+          }
+        }
+      }
+      refreshWarning = 'Library not found.';
+      state = cached != null
+          ? AsyncData(cached)
+          : AsyncError(StateError(refreshWarning!), StackTrace.current);
+    } finally {
+      isRefreshing = false;
+      if (state case AsyncData(value: final visible)) {
+        state = AsyncData(visible);
+      }
     }
   }
 }

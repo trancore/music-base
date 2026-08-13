@@ -352,7 +352,7 @@ class _SidebarQueue extends StatelessWidget {
                 ),
               ),
               Text(
-                '${snapshot.queue.length}',
+                '${snapshot.queueTotal ?? snapshot.queue.length}',
                 style: Theme.of(context).textTheme.labelSmall,
               ),
             ],
@@ -367,8 +367,12 @@ class _SidebarQueue extends StatelessWidget {
                 final track = snapshot.queue[index];
                 final isCurrent = index == snapshot.currentIndex;
                 return InkWell(
-                  onTap: () =>
-                      playback.playQueue(snapshot.queue, initialIndex: index),
+                  onTap: snapshot.queueTotal == null
+                      ? () => playback.playQueue(
+                          snapshot.queue,
+                          initialIndex: index,
+                        )
+                      : null,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 5),
                     child: Row(

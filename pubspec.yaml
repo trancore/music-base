@@ -49,6 +49,8 @@ dependencies:
   dart_smb2: ^0.1.1
   flutter_secure_storage: ^11.0.0
   http: ^1.6.0
+  crypto: ^3.0.6
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

@@ -60,9 +60,9 @@ class PlaybackDock extends StatelessWidget {
         ),
         padding: EdgeInsets.fromLTRB(
           compact ? 12 : 24,
-          10,
+          6,
           compact ? 12 : 24,
-          compact ? 8 : 12,
+          compact ? 6 : 8,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -153,18 +153,23 @@ class PlaybackDock extends StatelessWidget {
                 snapshot: snapshot,
                 audioAnalysis: audioAnalysis,
                 realtimeSpectrum: realtimeSpectrum,
+                height: 112,
               ),
-              Slider(
-                value: duration.inMilliseconds == 0
-                    ? 0
-                    : position.inMilliseconds.toDouble(),
-                max: duration.inMilliseconds == 0
-                    ? 1
-                    : duration.inMilliseconds.toDouble(),
-                onChanged: duration.inMilliseconds == 0
-                    ? null
-                    : (value) =>
-                          playback.seek(Duration(milliseconds: value.round())),
+              SizedBox(
+                height: 34,
+                child: Slider(
+                  value: duration.inMilliseconds == 0
+                      ? 0
+                      : position.inMilliseconds.toDouble(),
+                  max: duration.inMilliseconds == 0
+                      ? 1
+                      : duration.inMilliseconds.toDouble(),
+                  onChanged: duration.inMilliseconds == 0
+                      ? null
+                      : (value) => playback.seek(
+                          Duration(milliseconds: value.round()),
+                        ),
+                ),
               ),
             ] else
               Padding(
@@ -460,7 +465,7 @@ class _MobileNowPlayingSheet extends StatelessWidget {
                     const Icon(Icons.volume_up, size: 18),
                   ],
                 ),
-                if (snapshot.queue.length > 1)
+                if ((snapshot.queueTotal ?? snapshot.queue.length) > 1)
                   _MobileQueue(snapshot: snapshot, playback: playback),
               ],
             ),
@@ -498,7 +503,7 @@ class _MobileQueue extends StatelessWidget {
             ),
             const Spacer(),
             Text(
-              '${snapshot.queue.length} songs',
+              '${snapshot.queueTotal ?? snapshot.queue.length} songs',
               style: theme.textTheme.bodySmall,
             ),
           ],
@@ -509,8 +514,9 @@ class _MobileQueue extends StatelessWidget {
             track: snapshot.queue[index],
             index: index,
             isCurrent: index == snapshot.currentIndex,
-            onTap: () =>
-                playback.playQueue(snapshot.queue, initialIndex: index),
+            onTap: snapshot.queueTotal == null
+                ? () => playback.playQueue(snapshot.queue, initialIndex: index)
+                : null,
           ),
       ],
     );
@@ -528,7 +534,7 @@ class _QueueTrackTile extends StatelessWidget {
   final LibraryTrack track;
   final int index;
   final bool isCurrent;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) => ListTile(

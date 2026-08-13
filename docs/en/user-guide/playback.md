@@ -10,7 +10,7 @@ Choose “Import M3U playlist” to read a UTF-8 `.m3u` or `.m3u8` file. Extende
 
 Playback errors are shown in the UI so another track can be selected without closing the app. The playback dock displays a real-time spectrum on supported platforms and waveform data from local audio files elsewhere. SMB tracks and files that cannot be analyzed use a playback-position fallback.
 
-On Android, a real-time spectrum view can use FFT data captured from the playback session. On Windows, the app analyzes PCM data captured from the system output through WASAPI loopback. On macOS 14.2 or later, the app uses macOS system-audio capture and sends PCM frames to the same FFT analyzer. If capture permission is denied or a platform capture API is unavailable, it falls back to waveform or playback-position visualization.
+On Android, the real-time spectrum uses the playback session. Windows uses process loopback for this application, and macOS 14.2 or later filters audio capture to this application. Audio from other applications or the complete system mix is not analyzed. If capture permission is denied or a platform capture API is unavailable, the app falls back to waveform or playback-position visualization.
 
 On desktop, the playback queue is shown at the bottom of the sidebar while tracks are queued. Select a track in the list to start playback from that position.
 

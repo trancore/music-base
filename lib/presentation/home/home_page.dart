@@ -1,10 +1,17 @@
+import 'dart:async';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/library_providers.dart';
 import '../../app/playback_providers.dart';
-import '../../domain/library/library_search.dart';
+import '../../data/playback/library_playback_queue.dart';
+import '../../domain/library/library_query.dart';
 import '../../domain/library/library_track.dart';
+import '../../domain/playback/playback_service.dart';
+
+enum _LibraryViewMode { songs, albums, artists }
 
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
@@ -19,25 +26,31 @@ class _HomePageState extends ConsumerState<HomePage> {
   String _searchQuery = '';
   int _sortColumn = 0;
   bool _sortAscending = true;
+  Timer? _searchDebounce;
+  _LibraryViewMode _viewMode = _LibraryViewMode.songs;
+  LibraryGroup? _selectedGroup;
 
   @override
   void dispose() {
     _searchController.dispose();
     _searchFocusNode.dispose();
+    _searchDebounce?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final library = ref.watch(libraryProvider);
+    final groups = ref.watch(libraryGroupsProvider);
     final playback = ref.watch(playbackServiceProvider);
     final snapshot = playback.snapshot;
     final tracks = library.valueOrNull ?? const <LibraryTrack>[];
-    final filteredTracks = _sortedTracks(
-      filterLibraryTracks(tracks, _searchQuery),
-      _sortColumn,
-      _sortAscending,
-    );
+    final filteredTracks = tracks;
+    final libraryNotifier = ref.read(libraryProvider.notifier);
+    final refreshWarning = libraryNotifier.refreshWarning;
+    final groupNotifier = ref.read(libraryGroupsProvider.notifier);
+    final showTracks =
+        _viewMode == _LibraryViewMode.songs || _selectedGroup != null;
     final isCompact = MediaQuery.sizeOf(context).width < 700;
 
     return Scaffold(
@@ -80,41 +93,131 @@ class _HomePageState extends ConsumerState<HomePage> {
                   horizontalPadding,
                   12,
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _searchController,
-                        focusNode: _searchFocusNode,
-                        decoration: InputDecoration(
-                          hintText: 'Search title, artist, album...',
-                          prefixIcon: const Icon(Icons.search),
-                          suffixIcon: _searchQuery.isEmpty
-                              ? null
-                              : IconButton(
-                                  tooltip: 'Clear search',
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    setState(() => _searchQuery = '');
-                                  },
-                                  icon: const Icon(Icons.clear),
-                                ),
-                        ),
-                        onChanged: (value) =>
-                            setState(() => _searchQuery = value),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: SegmentedButton<_LibraryViewMode>(
+                        segments: const [
+                          ButtonSegment(
+                            value: _LibraryViewMode.songs,
+                            icon: Icon(Icons.music_note_outlined),
+                            label: Text('Songs'),
+                          ),
+                          ButtonSegment(
+                            value: _LibraryViewMode.albums,
+                            icon: Icon(Icons.album_outlined),
+                            label: Text('Albums'),
+                          ),
+                          ButtonSegment(
+                            value: _LibraryViewMode.artists,
+                            icon: Icon(Icons.person_outline),
+                            label: Text('Artists'),
+                          ),
+                        ],
+                        selected: {_viewMode},
+                        onSelectionChanged: (selection) {
+                          _changeView(
+                            selection.single,
+                            libraryNotifier,
+                            groupNotifier,
+                          );
+                        },
                       ),
                     ),
-                    if (filteredTracks.isNotEmpty) ...[
-                      const SizedBox(width: 12),
-                      FilledButton.icon(
-                        onPressed: () => playback.playQueue(filteredTracks),
-                        icon: const Icon(Icons.play_arrow),
-                        label: const Text('Play all'),
+                    const SizedBox(height: 12),
+                    if (_selectedGroup case final selectedGroup?) ...[
+                      Row(
+                        children: [
+                          IconButton(
+                            tooltip:
+                                'Back to ${_viewMode == _LibraryViewMode.albums ? 'albums' : 'artists'}',
+                            onPressed: () =>
+                                _closeGroup(libraryNotifier, groupNotifier),
+                            icon: const Icon(Icons.arrow_back),
+                          ),
+                          Expanded(
+                            child: Text(
+                              selectedGroup.displayName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: 8),
                     ],
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            focusNode: _searchFocusNode,
+                            decoration: InputDecoration(
+                              hintText: 'Search title, artist, album...',
+                              prefixIcon: const Icon(Icons.search),
+                              suffixIcon: _searchQuery.isEmpty
+                                  ? null
+                                  : IconButton(
+                                      tooltip: 'Clear search',
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        setState(() => _searchQuery = '');
+                                        _applySearch(
+                                          '',
+                                          showTracks,
+                                          libraryNotifier,
+                                          groupNotifier,
+                                        );
+                                      },
+                                      icon: const Icon(Icons.clear),
+                                    ),
+                            ),
+                            onChanged: (value) {
+                              setState(() => _searchQuery = value);
+                              _searchDebounce?.cancel();
+                              _searchDebounce = Timer(
+                                const Duration(milliseconds: 250),
+                                () => _applySearch(
+                                  value,
+                                  showTracks,
+                                  libraryNotifier,
+                                  groupNotifier,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        if (showTracks && filteredTracks.isNotEmpty) ...[
+                          const SizedBox(width: 12),
+                          FilledButton.icon(
+                            onPressed: () async {
+                              final repository = ref.read(
+                                libraryRepositoryProvider,
+                              );
+                              final queue = await repository
+                                  .createPlaybackQueue(
+                                    libraryNotifier.effectiveQuery,
+                                  );
+                              if (queue.length == 0) return;
+                              await playback.playLazyQueue(
+                                LibraryPlaybackQueue(repository, queue),
+                              );
+                            },
+                            icon: const Icon(Icons.play_arrow),
+                            label: const Text('Play all'),
+                          ),
+                        ],
+                      ],
+                    ),
                   ],
                 ),
               ),
+              if (libraryNotifier.isRefreshing)
+                const LinearProgressIndicator(minHeight: 2),
               Expanded(
                 child: LayoutBuilder(
                   builder: (context, contentConstraints) => ListView(
@@ -125,14 +228,47 @@ class _HomePageState extends ConsumerState<HomePage> {
                       28,
                     ),
                     children: [
-                      if (library.isLoading)
+                      if (!library.hasError && refreshWarning != null)
+                        Card(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.tertiaryContainer,
+                          child: ListTile(
+                            leading: const Icon(Icons.warning_amber_outlined),
+                            title: const Text('Library refresh incomplete'),
+                            subtitle: Text(refreshWarning),
+                            trailing: TextButton(
+                              onPressed: libraryNotifier.isRefreshing
+                                  ? null
+                                  : libraryNotifier.rescan,
+                              child: const Text('Retry'),
+                            ),
+                          ),
+                        ),
+                      if (!showTracks)
+                        _LibraryGroupGrid(
+                          groups: groups.valueOrNull ?? const [],
+                          totalCount: groupNotifier.totalCount,
+                          isLoading: groups.isLoading,
+                          error: groups.error,
+                          availableHeight: contentConstraints.maxHeight,
+                          onNearEnd: groupNotifier.loadNextPage,
+                          onOpen: (group) => _openGroup(group, libraryNotifier),
+                          onPlay: (group) => _playGroup(group, playback),
+                        )
+                      else if (library.isLoading && tracks.isEmpty)
                         const Center(child: CircularProgressIndicator())
                       else if (library.hasError)
                         Card(
                           color: Theme.of(context).colorScheme.errorContainer,
                           child: ListTile(
                             leading: const Icon(Icons.error_outline),
-                            title: const Text('Library scan failed'),
+                            title: Text(
+                              libraryNotifier.refreshWarning ==
+                                      'Library not found.'
+                                  ? 'Library not found'
+                                  : 'Library scan failed',
+                            ),
                             subtitle: Text(library.error.toString()),
                             trailing: TextButton(
                               onPressed: () =>
@@ -163,7 +299,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                         Padding(
                           padding: const EdgeInsets.only(bottom: 12),
                           child: Text(
-                            '${filteredTracks.length} songs',
+                            '${libraryNotifier.totalCount} songs',
                             style: Theme.of(context).textTheme.labelLarge
                                 ?.copyWith(
                                   color: Theme.of(
@@ -176,6 +312,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                           tracks: filteredTracks,
                           currentPath: snapshot.currentTrack?.sourcePath,
                           onPlay: playback.playTrack,
+                          onNearEnd: libraryNotifier.loadNextPage,
                         ),
                       ] else
                         _TrackTable(
@@ -194,8 +331,13 @@ class _HomePageState extends ConsumerState<HomePage> {
                                 _sortAscending = true;
                               }
                             });
+                            libraryNotifier.setQuery(
+                              sortField: LibrarySortField.values[column],
+                              ascending: _sortAscending,
+                            );
                           },
                           onDoubleTap: playback.playTrack,
+                          onNearEnd: libraryNotifier.loadNextPage,
                         ),
                     ],
                   ),
@@ -207,6 +349,239 @@ class _HomePageState extends ConsumerState<HomePage> {
       ),
     );
   }
+
+  void _applySearch(
+    String value,
+    bool showTracks,
+    LibraryNotifier libraryNotifier,
+    LibraryGroupsNotifier groupNotifier,
+  ) {
+    if (showTracks) {
+      unawaited(libraryNotifier.setQuery(search: value));
+    } else {
+      unawaited(groupNotifier.setQuery(search: value));
+    }
+  }
+
+  void _changeView(
+    _LibraryViewMode mode,
+    LibraryNotifier libraryNotifier,
+    LibraryGroupsNotifier groupNotifier,
+  ) {
+    _searchDebounce?.cancel();
+    _searchController.clear();
+    setState(() {
+      _viewMode = mode;
+      _selectedGroup = null;
+      _searchQuery = '';
+      _sortColumn = 0;
+      _sortAscending = true;
+    });
+    unawaited(libraryNotifier.setGroup(null));
+    if (mode != _LibraryViewMode.songs) {
+      unawaited(
+        groupNotifier.setQuery(
+          kind: mode == _LibraryViewMode.albums
+              ? LibraryGroupKind.album
+              : LibraryGroupKind.artist,
+          search: '',
+        ),
+      );
+    }
+  }
+
+  void _openGroup(LibraryGroup group, LibraryNotifier notifier) {
+    _searchDebounce?.cancel();
+    _searchController.clear();
+    setState(() {
+      _selectedGroup = group;
+      _searchQuery = '';
+      _sortColumn = group.kind == LibraryGroupKind.artist ? 2 : -1;
+      _sortAscending = true;
+    });
+    unawaited(notifier.setGroup(group));
+  }
+
+  void _closeGroup(
+    LibraryNotifier libraryNotifier,
+    LibraryGroupsNotifier groupNotifier,
+  ) {
+    _searchDebounce?.cancel();
+    _searchController.clear();
+    setState(() {
+      _selectedGroup = null;
+      _searchQuery = '';
+      _sortColumn = 0;
+      _sortAscending = true;
+    });
+    unawaited(libraryNotifier.setGroup(null));
+    unawaited(groupNotifier.setQuery(search: ''));
+  }
+
+  Future<void> _playGroup(LibraryGroup group, PlaybackService playback) async {
+    final repository = ref.read(libraryRepositoryProvider);
+    final source = ref.read(libraryProvider.notifier).activeSourcePath;
+    final queue = await repository.createPlaybackQueue(
+      group.tracksQuery(sourceKey: source),
+    );
+    if (queue.length == 0) return;
+    await playback.playLazyQueue(LibraryPlaybackQueue(repository, queue));
+  }
+}
+
+class _LibraryGroupGrid extends StatelessWidget {
+  const _LibraryGroupGrid({
+    required this.groups,
+    required this.totalCount,
+    required this.isLoading,
+    required this.error,
+    required this.availableHeight,
+    required this.onNearEnd,
+    required this.onOpen,
+    required this.onPlay,
+  });
+
+  final List<LibraryGroup> groups;
+  final int totalCount;
+  final bool isLoading;
+  final Object? error;
+  final double availableHeight;
+  final VoidCallback onNearEnd;
+  final ValueChanged<LibraryGroup> onOpen;
+  final ValueChanged<LibraryGroup> onPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading && groups.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (error != null && groups.isEmpty) {
+      return Card(
+        color: Theme.of(context).colorScheme.errorContainer,
+        child: ListTile(
+          leading: const Icon(Icons.error_outline),
+          title: const Text('Could not load library groups'),
+          subtitle: Text('$error'),
+        ),
+      );
+    }
+    if (groups.isEmpty) {
+      return const Card(
+        child: ListTile(
+          leading: Icon(Icons.search_off),
+          title: Text('No matching items'),
+          subtitle: Text('Try a different search term.'),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Text(
+            '$totalCount ${groups.first.kind == LibraryGroupKind.album ? 'albums' : 'artists'}',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        SizedBox(
+          height: availableHeight * 0.78,
+          child: GridView.builder(
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 240,
+              mainAxisExtent: 250,
+              crossAxisSpacing: 14,
+              mainAxisSpacing: 14,
+            ),
+            itemCount: groups.length,
+            itemBuilder: (context, index) {
+              if (index >= groups.length - 20) onNearEnd();
+              final group = groups[index];
+              return Card(
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () => onOpen(group),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: _GroupArtwork(trackId: group.artworkTrackId),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    group.displayName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${group.trackCount} songs',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Play',
+                              onPressed: () => onPlay(group),
+                              icon: const Icon(Icons.play_arrow),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _GroupArtwork extends ConsumerWidget {
+  const _GroupArtwork({required this.trackId});
+
+  final int? trackId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bytes = trackId == null
+        ? const AsyncData<List<int>?>(null)
+        : ref.watch(libraryArtworkProvider(trackId!));
+    return ColoredBox(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: bytes.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, _) =>
+            const Center(child: Icon(Icons.album_outlined, size: 52)),
+        data: (artwork) => artwork == null || artwork.isEmpty
+            ? const Center(child: Icon(Icons.album_outlined, size: 52))
+            : Image.memory(
+                Uint8List.fromList(artwork),
+                fit: BoxFit.cover,
+                cacheWidth: 480,
+                cacheHeight: 360,
+                errorBuilder: (_, _, _) => const Icon(Icons.album_outlined),
+              ),
+      ),
+    );
+  }
 }
 
 class _CompactTrackList extends StatelessWidget {
@@ -214,17 +589,23 @@ class _CompactTrackList extends StatelessWidget {
     required this.tracks,
     required this.currentPath,
     required this.onPlay,
+    required this.onNearEnd,
   });
 
   final List<LibraryTrack> tracks;
   final String? currentPath;
   final ValueChanged<LibraryTrack> onPlay;
+  final VoidCallback onNearEnd;
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      for (final track in tracks)
-        Card(
+  Widget build(BuildContext context) => SizedBox(
+    height: MediaQuery.sizeOf(context).height * 0.65,
+    child: ListView.builder(
+      itemCount: tracks.length,
+      itemBuilder: (context, index) {
+        if (index >= tracks.length - 40) onNearEnd();
+        final track = tracks[index];
+        return Card(
           margin: const EdgeInsets.only(bottom: 10),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
@@ -250,16 +631,8 @@ class _CompactTrackList extends StatelessWidget {
                   end: Alignment.bottomRight,
                 ),
               ),
-              child: track.artwork != null
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: Image.memory(
-                        track.artwork!,
-                        width: 52,
-                        height: 52,
-                        fit: BoxFit.cover,
-                      ),
-                    )
+              child: track.cacheId != null || track.artwork != null
+                  ? _CachedArtwork(track: track, size: 52, radius: 14)
                   : Icon(
                       currentPath == track.sourcePath
                           ? Icons.equalizer
@@ -276,6 +649,7 @@ class _CompactTrackList extends StatelessWidget {
             ),
             subtitle: Text(
               [
+                if (_trackNumberLabel(track) case final number?) '#$number',
                 if (track.artist case final artist?
                     when artist.trim().isNotEmpty)
                   artist,
@@ -292,8 +666,9 @@ class _CompactTrackList extends StatelessWidget {
             ),
             onTap: () => onPlay(track),
           ),
-        ),
-    ],
+        );
+      },
+    ),
   );
 }
 
@@ -331,25 +706,6 @@ class _PageIntro extends StatelessWidget {
   );
 }
 
-List<LibraryTrack> _sortedTracks(
-  List<LibraryTrack> tracks,
-  int column,
-  bool ascending,
-) {
-  final sorted = [...tracks];
-  String value(LibraryTrack track) => switch (column) {
-    0 => track.title ?? track.sourcePath,
-    1 => track.artist ?? '',
-    2 => track.album ?? '',
-    _ => track.sourcePath,
-  };
-  sorted.sort((a, b) {
-    final result = value(a).toLowerCase().compareTo(value(b).toLowerCase());
-    return ascending ? result : -result;
-  });
-  return sorted;
-}
-
 class _TrackTable extends StatelessWidget {
   const _TrackTable({
     required this.tracks,
@@ -360,6 +716,7 @@ class _TrackTable extends StatelessWidget {
     required this.sortAscending,
     required this.onSort,
     required this.onDoubleTap,
+    required this.onNearEnd,
   });
 
   final List<LibraryTrack> tracks;
@@ -370,12 +727,13 @@ class _TrackTable extends StatelessWidget {
   final bool sortAscending;
   final ValueChanged<int> onSort;
   final ValueChanged<LibraryTrack> onDoubleTap;
+  final VoidCallback onNearEnd;
 
   @override
   Widget build(BuildContext context) {
     final borderColor = Theme.of(context).dividerColor;
     const columnWidths = {
-      0: FixedColumnWidth(64),
+      0: FixedColumnWidth(104),
       1: FlexColumnWidth(2.4),
       2: FlexColumnWidth(1.5),
       3: FlexColumnWidth(1.5),
@@ -421,20 +779,6 @@ class _TrackTable extends StatelessWidget {
         ),
       ],
     );
-    final rows = Table(
-      columnWidths: columnWidths,
-      border: TableBorder(horizontalInside: BorderSide(color: borderColor)),
-      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-      children: [
-        for (var index = 0; index < tracks.length; index++)
-          _trackRow(
-            context,
-            tracks[index],
-            index,
-            currentPath == tracks[index].sourcePath,
-          ),
-      ],
-    );
     return Card(
       clipBehavior: Clip.antiAlias,
       child: SingleChildScrollView(
@@ -445,7 +789,30 @@ class _TrackTable extends StatelessWidget {
           child: Column(
             children: [
               header,
-              Expanded(child: SingleChildScrollView(child: rows)),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: tracks.length,
+                  itemBuilder: (context, index) {
+                    if (index >= tracks.length - 40) onNearEnd();
+                    return Table(
+                      columnWidths: columnWidths,
+                      border: TableBorder(
+                        bottom: BorderSide(color: borderColor),
+                      ),
+                      defaultVerticalAlignment:
+                          TableCellVerticalAlignment.middle,
+                      children: [
+                        _trackRow(
+                          context,
+                          tracks[index],
+                          index,
+                          currentPath == tracks[index].sourcePath,
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
             ],
           ),
         ),
@@ -477,19 +844,28 @@ class _TrackTable extends StatelessWidget {
       decoration: BoxDecoration(color: rowColor),
       children: [
         cell(
-          SizedBox.square(
-            dimension: 38,
-            child: track.artwork == null
-                ? Icon(isCurrent ? Icons.graphic_eq : Icons.music_note_outlined)
-                : ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: Image.memory(
-                      track.artwork!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          const Icon(Icons.music_note_outlined),
-                    ),
-                  ),
+          Row(
+            children: [
+              SizedBox(
+                width: 28,
+                child: Text(
+                  _trackNumberLabel(track) ?? '${index + 1}',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
+              ),
+              const SizedBox(width: 6),
+              SizedBox.square(
+                dimension: 34,
+                child: track.cacheId == null && track.artwork == null
+                    ? Icon(
+                        isCurrent
+                            ? Icons.graphic_eq
+                            : Icons.music_note_outlined,
+                      )
+                    : _CachedArtwork(track: track, size: 34, radius: 6),
+              ),
+            ],
           ),
         ),
         cell(
@@ -523,6 +899,59 @@ class _TrackTable extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+String? _trackNumberLabel(LibraryTrack track) {
+  final trackNumber = track.trackNumber;
+  if (trackNumber == null) return null;
+  final discNumber = track.discNumber;
+  return discNumber != null && discNumber > 1
+      ? '$discNumber-$trackNumber'
+      : '$trackNumber';
+}
+
+class _CachedArtwork extends ConsumerWidget {
+  const _CachedArtwork({
+    required this.track,
+    required this.size,
+    required this.radius,
+  });
+
+  final LibraryTrack track;
+  final double size;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final legacy = track.artwork;
+    final artwork = track.cacheId == null
+        ? AsyncData<List<int>?>(legacy)
+        : ref.watch(libraryArtworkProvider(track.cacheId!));
+    return artwork.when(
+      loading: () => const Center(
+        child: SizedBox.square(
+          dimension: 16,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      ),
+      error: (error, stackTrace) => const Icon(Icons.music_note_outlined),
+      data: (bytes) => bytes == null || bytes.isEmpty
+          ? const Icon(Icons.music_note_outlined)
+          : ClipRRect(
+              borderRadius: BorderRadius.circular(radius),
+              child: Image.memory(
+                Uint8List.fromList(bytes),
+                width: size,
+                height: size,
+                cacheWidth: (size * 2).round(),
+                cacheHeight: (size * 2).round(),
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) =>
+                    const Icon(Icons.music_note_outlined),
+              ),
+            ),
     );
   }
 }

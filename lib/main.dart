@@ -9,6 +9,9 @@ import 'app/providers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  PaintingBinding.instance.imageCache
+    ..maximumSize = 200
+    ..maximumSizeBytes = 64 * 1024 * 1024;
   if (defaultTargetPlatform == TargetPlatform.android) {
     await JustAudioBackground.init(
       androidNotificationChannelId: 'com.trancore.music_base.audio',

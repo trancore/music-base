@@ -8,12 +8,18 @@ class LibraryMetadata {
     this.artist,
     this.album,
     this.artwork,
+    this.discNumber,
+    this.trackNumber,
+    this.parsedSuccessfully = false,
   });
 
   final String title;
   final String? artist;
   final String? album;
   final Uint8List? artwork;
+  final int? discNumber;
+  final int? trackNumber;
+  final bool parsedSuccessfully;
 }
 
 LibraryMetadata inferLibraryMetadata(String sourcePath, {String? libraryRoot}) {
@@ -32,8 +38,16 @@ LibraryMetadata inferLibraryMetadata(String sourcePath, {String? libraryRoot}) {
     artist = _nonEmpty(pathSegments[pathSegments.length - 3]);
   }
 
-  return LibraryMetadata(title: title, artist: artist, album: album);
+  return LibraryMetadata(
+    title: title,
+    artist: artist,
+    album: album,
+    trackNumber: _trackNumber(fileName),
+  );
 }
+
+int? _trackNumber(String fileName) =>
+    int.tryParse(RegExp(r'^\s*(\d{1,3})').firstMatch(fileName)?.group(1) ?? '');
 
 List<String> _pathSegments(String sourcePath, {String? libraryRoot}) {
   if (sourcePath.startsWith('smb://')) {

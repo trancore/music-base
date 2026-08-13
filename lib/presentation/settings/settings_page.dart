@@ -1,11 +1,19 @@
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/providers.dart';
 import '../../app/library_providers.dart';
 import '../../app/smb_providers.dart';
 import '../../domain/library/smb_source.dart';
+
+const userGuideUrl = 'https://trancore.github.io/music-base/ja/user-guide/';
+
+final externalUrlLauncherProvider = Provider<Future<bool> Function(Uri)>((ref) {
+  return launchUrl;
+});
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -87,9 +95,66 @@ class SettingsPage extends ConsumerWidget {
             subtitle: 'Credentials are stored in platform secure storage.',
             child: const SmbConnectionForm(),
           ),
+          const SizedBox(height: 16),
+          const _SettingsSection(
+            title: 'Help',
+            subtitle: 'Learn how to set up and use the application.',
+            child: DocumentationSection(),
+          ),
         ],
       ),
     );
+  }
+}
+
+class DocumentationSection extends ConsumerWidget {
+  const DocumentationSection({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: const Icon(Icons.help_outline),
+        title: const Text('User guide (GitHub Pages)'),
+        subtitle: const Text(userGuideUrl),
+        trailing: const Icon(Icons.open_in_new),
+        onTap: () => _openGuide(context, ref),
+      ),
+      TextButton.icon(
+        onPressed: () => _copyGuideUrl(context),
+        icon: const Icon(Icons.copy),
+        label: const Text('Copy link'),
+      ),
+    ],
+  );
+
+  Future<void> _openGuide(BuildContext context, WidgetRef ref) async {
+    var opened = false;
+    try {
+      opened = await ref.read(externalUrlLauncherProvider)(
+        Uri.parse(userGuideUrl),
+      );
+    } on Object {
+      opened = false;
+    }
+    if (!context.mounted || opened) return;
+    await Clipboard.setData(const ClipboardData(text: userGuideUrl));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Could not open the user guide. The link was copied.'),
+      ),
+    );
+  }
+
+  Future<void> _copyGuideUrl(BuildContext context) async {
+    await Clipboard.setData(const ClipboardData(text: userGuideUrl));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('User guide link copied.')));
   }
 }
 
@@ -130,8 +195,9 @@ class LocalLibrarySourceSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final library = ref.watch(libraryProvider);
-    final sourcePath = ref.read(libraryProvider.notifier).sourcePath;
+    ref.watch(libraryProvider);
+    final notifier = ref.read(libraryProvider.notifier);
+    final sourcePath = notifier.sourcePath;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -141,17 +207,25 @@ class LocalLibrarySourceSection extends ConsumerWidget {
           title: const Text('Current source'),
           subtitle: Text(sourcePath ?? 'No local directory configured.'),
           trailing: FilledButton.icon(
-            onPressed: library.isLoading ? null : () => _chooseDirectory(ref),
+            onPressed: notifier.isRefreshing
+                ? null
+                : () => _chooseDirectory(ref),
             icon: const Icon(Icons.folder_open),
             label: const Text('Choose'),
           ),
         ),
-        if (library.hasError)
+        if (notifier.refreshWarning case final warning?)
           Text(
-            'Library scan failed: ${library.error}',
+            warning,
             style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
-        if (library.isLoading) const LinearProgressIndicator(),
+        if (notifier.isRefreshing) ...[
+          const LinearProgressIndicator(),
+          const SizedBox(height: 8),
+          const Text(
+            'Scanning in the background. Cached music remains available.',
+          ),
+        ],
       ],
     );
   }
@@ -301,15 +375,15 @@ class _SmbConnectionFormState extends ConsumerState<SmbConnectionForm> {
       await ref.read(smbSourceProvider.notifier).save(source, password);
       await ref.read(libraryProvider.notifier).scanSmb();
       if (!mounted) return;
-      final library = ref.read(libraryProvider);
+      final libraryNotifier = ref.read(libraryProvider.notifier);
+      final scanError = libraryNotifier.refreshWarning;
       setState(() {
         _busy = false;
-        _success = !library.hasError;
-        _message = library.hasError
-            ? 'Connection succeeded, but the library scan failed: '
-                  '${library.error}'
+        _success = scanError == null;
+        _message = scanError != null
+            ? 'Connection succeeded, but $scanError'
             : 'Connection succeeded. Found '
-                  '${library.valueOrNull?.length ?? 0} FLAC/MP3 files.';
+                  '${libraryNotifier.totalCount} FLAC/MP3 files.';
       });
     } on Exception catch (error) {
       if (!mounted) return;
@@ -335,13 +409,13 @@ class _SmbConnectionFormState extends ConsumerState<SmbConnectionForm> {
     });
     await ref.read(libraryProvider.notifier).scanSmb();
     if (!mounted) return;
-    final library = ref.read(libraryProvider);
+    final libraryNotifier = ref.read(libraryProvider.notifier);
+    final scanError = libraryNotifier.refreshWarning;
     setState(() {
       _busy = false;
-      _success = !library.hasError;
-      _message = library.hasError
-          ? 'Library scan failed: ${library.error}'
-          : 'Found ${library.valueOrNull?.length ?? 0} FLAC/MP3 files.';
+      _success = scanError == null;
+      _message =
+          scanError ?? 'Found ${libraryNotifier.totalCount} FLAC/MP3 files.';
     });
   }
 

@@ -7,13 +7,22 @@ import '../../domain/library/library_errors.dart';
 import '../../domain/library/library_metadata.dart';
 import '../../domain/library/library_track.dart';
 import '../../domain/library/smb_source.dart';
+import 'smb_flac_metadata_reader.dart';
 
 class SmbLibraryScanner {
-  const SmbLibraryScanner();
+  const SmbLibraryScanner({
+    this.flacMetadataReader = const SmbFlacMetadataReader(),
+  });
+
+  final SmbFlacMetadataReader flacMetadataReader;
 
   static const supportedExtensions = {'.flac', '.mp3'};
 
-  Future<List<LibraryTrack>> scan(SmbSource source, String password) async {
+  Future<List<LibraryTrack>> scan(
+    SmbSource source,
+    String password, {
+    Map<String, LibraryTrack> cachedTracks = const {},
+  }) async {
     Smb2Pool? pool;
     try {
       pool = await Smb2Pool.connect(
@@ -25,7 +34,13 @@ class SmbLibraryScanner {
         timeoutSeconds: 30,
       );
       final tracks = <LibraryTrack>[];
-      await _scanDirectory(pool, _normalize(source.subfolder), source, tracks);
+      await _scanDirectory(
+        pool,
+        _normalize(source.subfolder),
+        source,
+        tracks,
+        cachedTracks,
+      );
       tracks.sort(
         (a, b) =>
             a.sourcePath.toLowerCase().compareTo(b.sourcePath.toLowerCase()),
@@ -45,13 +60,14 @@ class SmbLibraryScanner {
     String directory,
     SmbSource source,
     List<LibraryTrack> tracks,
+    Map<String, LibraryTrack> cachedTracks,
   ) async {
     final entries = await pool.listDirectory(directory);
     final artwork = await _readFolderArtwork(pool, directory, entries);
     for (final entry in entries) {
       final remotePath = _join(directory, entry.name);
       if (entry.isDirectory) {
-        await _scanDirectory(pool, remotePath, source, tracks);
+        await _scanDirectory(pool, remotePath, source, tracks, cachedTracks);
       } else if (entry.isFile &&
           supportedExtensions.contains(p.extension(entry.name).toLowerCase())) {
         final sourcePath = Uri(
@@ -60,18 +76,63 @@ class SmbLibraryScanner {
           pathSegments: [source.share, ...remotePath.split('/')],
         ).toString();
         final metadata = inferLibraryMetadata(sourcePath);
-        tracks.add(
+        final cached = cachedTracks[sourcePath];
+        if (cached != null &&
+            cached.fileSize == entry.size &&
+            cached.modifiedAt == entry.stat.modified &&
+            cached.metadataVersion >= 1) {
+          _record(
+            tracks,
+            LibraryTrack(
+              cacheId: cached.cacheId,
+              sourcePath: cached.sourcePath,
+              title: cached.title,
+              artist: cached.artist,
+              album: cached.album,
+              lastSeenAt: DateTime.now(),
+              fileSize: cached.fileSize,
+              modifiedAt: cached.modifiedAt,
+              discNumber: cached.discNumber,
+              trackNumber: cached.trackNumber,
+              metadataVersion: cached.metadataVersion,
+            ),
+          );
+          continue;
+        }
+        final resolvedMetadata =
+            p.extension(entry.name).toLowerCase() == '.flac'
+            ? await flacMetadataReader.read(
+                (offset, length) => pool.readFileRange(
+                  remotePath,
+                  offset: offset,
+                  length: length,
+                ),
+                metadata,
+                folderArtwork: artwork,
+              )
+            : metadata;
+        _record(
+          tracks,
           LibraryTrack(
             sourcePath: sourcePath,
-            title: metadata.title,
-            artist: metadata.artist,
-            album: metadata.album,
-            artwork: artwork,
-            lastSeenAt: entry.stat.modified,
+            title: resolvedMetadata.title,
+            artist: resolvedMetadata.artist,
+            album: resolvedMetadata.album,
+            artwork: resolvedMetadata.artwork ?? artwork,
+            lastSeenAt: DateTime.now(),
+            fileSize: entry.size,
+            modifiedAt: entry.stat.modified,
+            discNumber: resolvedMetadata.discNumber,
+            trackNumber: resolvedMetadata.trackNumber,
+            metadataVersion: resolvedMetadata.parsedSuccessfully ? 1 : 0,
           ),
         );
       }
     }
+  }
+
+  void _record(List<LibraryTrack> tracks, LibraryTrack track) {
+    tracks.add(track);
   }
 
   String _normalize(String path) =>

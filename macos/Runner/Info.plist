@@ -38,6 +38,6 @@
 		<true/>
 	</dict>
 	<key>NSScreenCaptureUsageDescription</key>
-	<string>Music Base uses system audio capture to display the real-time spectrum while music is playing.</string>
+	<string>Music Base captures only audio played by this application to display the real-time spectrum.</string>
 </dict>
 </plist>
