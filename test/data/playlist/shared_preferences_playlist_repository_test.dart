@@ -60,4 +60,40 @@ void main() {
     expect(automatic.query, 'orchestra');
     expect(automatic.trackPaths, isEmpty);
   });
+
+  test('persists nested folders and playlist placement', () async {
+    SharedPreferences.setMockInitialValues({});
+    final repository = SharedPreferencesPlaylistRepository(
+      preferences: await SharedPreferences.getInstance(),
+    );
+
+    await repository.saveFolder(
+      const PlaylistFolder(id: 'parent', name: 'Parent', sortOrder: 0),
+    );
+    await repository.saveFolder(
+      const PlaylistFolder(
+        id: 'child',
+        name: 'Child',
+        parentFolderId: 'parent',
+        sortOrder: 0,
+      ),
+    );
+    await repository.save(
+      const Playlist(
+        id: 'nested',
+        name: 'Nested playlist',
+        parentFolderId: 'child',
+        sortOrder: 2,
+      ),
+    );
+
+    final folders = await repository.loadFolders();
+    final playlist = (await repository.loadAll()).single;
+    expect(
+      folders.singleWhere((entry) => entry.id == 'child').parentFolderId,
+      'parent',
+    );
+    expect(playlist.parentFolderId, 'child');
+    expect(playlist.sortOrder, 2);
+  });
 }

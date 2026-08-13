@@ -10,17 +10,17 @@ void main() {
     final result = parser.parseBytes(
       utf8.encode('''\ufeff#EXTM3U
 #EXTINF:256,artist - track one
-Z:/Music/音源/01-track.flac
+X:/SampleLibrary/音源/01-track.flac
 #EXTINF:460,artist - track two
-Z:\\Music\\音源\\02-track.flac
+X:\\SampleLibrary\\音源\\02-track.flac
 '''),
       sourcePath: r'C:\Playlists\sample.m3u',
     );
 
     expect(result.name, 'sample');
     expect(result.trackPaths, [
-      'Z:/Music/音源/01-track.flac',
-      'Z:/Music/音源/02-track.flac',
+      'X:/SampleLibrary/音源/01-track.flac',
+      'X:/SampleLibrary/音源/02-track.flac',
     ]);
   });
 
@@ -35,5 +35,24 @@ Z:\\Music\\音源\\02-track.flac
       '/Users/music/Music/one.flac',
       '/Users/music/playlists/two.mp3',
     ]);
+  });
+
+  test('preserves a 23-track UTF-8 playlist', () {
+    final entries = List.generate(
+      23,
+      (index) =>
+          '#EXTINF:${index + 60},Sample Artist - Étude ${index + 1}\n'
+          'Z:/Audio/音楽/Sample Artist/'
+          '${(index + 1).toString().padLeft(2, '0')}-Étude.flac',
+    );
+    final result = parser.parseBytes(
+      utf8.encode('#EXTM3U\n${entries.join('\n')}\n'),
+      sourcePath: r'C:\Playlists\Sample collection.m3u',
+    );
+
+    expect(result.name, 'Sample collection');
+    expect(result.trackPaths, hasLength(23));
+    expect(result.trackPaths.first, contains('音楽'));
+    expect(result.trackPaths.last, startsWith('Z:/Audio/'));
   });
 }

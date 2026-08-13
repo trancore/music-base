@@ -9,6 +9,7 @@ class SharedPreferencesPlaylistRepository implements PlaylistRepository {
   const SharedPreferencesPlaylistRepository({required this.preferences});
 
   static const _key = 'playlists';
+  static const _foldersKey = 'playlistFolders';
   final SharedPreferences preferences;
 
   @override
@@ -18,6 +19,7 @@ class SharedPreferencesPlaylistRepository implements PlaylistRepository {
     try {
       final decoded = jsonDecode(encoded);
       if (decoded is! List) return const [];
+      var legacyOrder = 0;
       return decoded
           .whereType<Map>()
           .map(
@@ -31,6 +33,31 @@ class SharedPreferencesPlaylistRepository implements PlaylistRepository {
                   ? PlaylistType.automatic
                   : PlaylistType.manual,
               query: entry['query'] as String?,
+              parentFolderId: entry['parentFolderId'] as String?,
+              sortOrder: entry['sortOrder'] as int? ?? legacyOrder++,
+            ),
+          )
+          .toList(growable: false);
+    } on Object {
+      return const [];
+    }
+  }
+
+  @override
+  Future<List<PlaylistFolder>> loadFolders() async {
+    final encoded = preferences.getString(_foldersKey);
+    if (encoded == null) return const [];
+    try {
+      final decoded = jsonDecode(encoded);
+      if (decoded is! List) return const [];
+      return decoded
+          .whereType<Map>()
+          .map(
+            (entry) => PlaylistFolder(
+              id: entry['id'] as String,
+              name: entry['name'] as String,
+              parentFolderId: entry['parentFolderId'] as String?,
+              sortOrder: entry['sortOrder'] as int? ?? 0,
             ),
           )
           .toList(growable: false);
@@ -44,17 +71,27 @@ class SharedPreferencesPlaylistRepository implements PlaylistRepository {
     final playlists = (await loadAll())
         .where((entry) => entry.id != playlist.id)
         .followedBy([playlist])
-        .map(
-          (entry) => {
-            'id': entry.id,
-            'name': entry.name,
-            'trackPaths': entry.trackPaths,
-            'type': entry.type.name,
-            if (entry.query != null) 'query': entry.query,
-          },
-        )
         .toList();
-    await preferences.setString(_key, jsonEncode(playlists));
+    await saveAll(playlists);
+  }
+
+  @override
+  Future<void> saveAll(List<Playlist> playlists) async {
+    await preferences.setString(
+      _key,
+      jsonEncode(playlists.map(_playlistJson).toList()),
+    );
+  }
+
+  @override
+  Future<void> saveFolder(PlaylistFolder folder) async {
+    final folders = (await loadFolders())
+        .where((entry) => entry.id != folder.id)
+        .followedBy([folder]);
+    await preferences.setString(
+      _foldersKey,
+      jsonEncode(folders.map(_folderJson).toList()),
+    );
   }
 
   @override
@@ -62,19 +99,33 @@ class SharedPreferencesPlaylistRepository implements PlaylistRepository {
     final playlists = (await loadAll()).where((entry) => entry.id != id);
     await preferences.setString(
       _key,
-      jsonEncode(
-        playlists
-            .map(
-              (entry) => {
-                'id': entry.id,
-                'name': entry.name,
-                'trackPaths': entry.trackPaths,
-                'type': entry.type.name,
-                if (entry.query != null) 'query': entry.query,
-              },
-            )
-            .toList(),
-      ),
+      jsonEncode(playlists.map(_playlistJson).toList()),
     );
   }
+
+  @override
+  Future<void> deleteFolder(String id) async {
+    final folders = (await loadFolders()).where((entry) => entry.id != id);
+    await preferences.setString(
+      _foldersKey,
+      jsonEncode(folders.map(_folderJson).toList()),
+    );
+  }
+
+  Map<String, Object?> _playlistJson(Playlist entry) => {
+    'id': entry.id,
+    'name': entry.name,
+    'trackPaths': entry.trackPaths,
+    'type': entry.type.name,
+    if (entry.query != null) 'query': entry.query,
+    if (entry.parentFolderId != null) 'parentFolderId': entry.parentFolderId,
+    'sortOrder': entry.sortOrder,
+  };
+
+  Map<String, Object?> _folderJson(PlaylistFolder entry) => {
+    'id': entry.id,
+    'name': entry.name,
+    if (entry.parentFolderId != null) 'parentFolderId': entry.parentFolderId,
+    'sortOrder': entry.sortOrder,
+  };
 }
