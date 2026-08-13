@@ -12,6 +12,8 @@ class WindowsCdTrackService implements CdTrackService {
   WindowsCdTrackService({CdProcessRunner? processRunner})
     : _processRunner = processRunner ?? Process.run;
 
+  static const _outputPrefix = 'MUSIC_BASE_TRACKS_JSON:';
+
   final CdProcessRunner _processRunner;
 
   @override
@@ -38,13 +40,32 @@ class WindowsCdTrackService implements CdTrackService {
   }
 
   List<CdTrack> parseJson(String output) {
-    final decoded = jsonDecode(output.trim());
-    final entries = decoded is List ? decoded : [decoded];
-    return entries
-        .whereType<Map>()
-        .map(_parseTrack)
-        .whereType<CdTrack>()
+    final payloads = output
+        .split(RegExp(r'\r?\n'))
+        .where((line) => line.startsWith(_outputPrefix))
+        .map((line) => line.substring(_outputPrefix.length).trim())
         .toList(growable: false);
+    if (payloads.length != 1 || payloads.single.isEmpty) {
+      throw const CdTrackException(
+        'Unable to read CD tracks because Windows returned an invalid response.',
+      );
+    }
+
+    try {
+      final decoded = jsonDecode(payloads.single);
+      if (decoded is! List) {
+        throw const FormatException('Expected a JSON array.');
+      }
+      return decoded
+          .whereType<Map>()
+          .map(_parseTrack)
+          .whereType<CdTrack>()
+          .toList(growable: false);
+    } on FormatException {
+      throw const CdTrackException(
+        'Unable to read CD tracks because Windows returned an invalid response.',
+      );
+    }
   }
 
   CdTrack? _parseTrack(Map entry) {
@@ -84,7 +105,7 @@ function Invoke-Mci([string]$command) {
   return $result.ToString()
 }
 try {
-  Invoke-Mci "open DRIVE type cdaudio alias musicbase_cd"
+  Invoke-Mci "open DRIVE type cdaudio alias musicbase_cd" | Out-Null
   Invoke-Mci "set musicbase_cd time format tmsf" | Out-Null
   $count = [int](Invoke-Mci "status musicbase_cd number of tracks")
   $tracks = @()
@@ -94,10 +115,12 @@ try {
       length = (Invoke-Mci "status musicbase_cd length track $index")
     }
   }
-  $tracks | ConvertTo-Json -Compress
+  $json = ConvertTo-Json -InputObject @($tracks) -Compress
+  [Console]::Out.WriteLine('OUTPUT_PREFIX' + $json)
 } finally {
   try { Invoke-Mci "close musicbase_cd" | Out-Null } catch {}
 }
 '''
-          .replaceAll('DRIVE', driveLetter);
+          .replaceAll('DRIVE', driveLetter)
+          .replaceAll('OUTPUT_PREFIX', _outputPrefix);
 }
