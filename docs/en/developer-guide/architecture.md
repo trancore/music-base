@@ -10,11 +10,15 @@ Keep UI, state management, domain logic, data access, and platform-specific code
 - `lib/presentation/`: screens and UI components
 - `lib/platform/`: boundaries for Windows and other platform-specific behavior
 
+Large screens keep their public page widget as the entry point and split responsive layouts, lists, cards, and dialogs into `part` files in the same feature directory. Routing and the application shell, as well as track-list and album/artist paging state, are kept in separate files while the externally referenced page, provider, and notifier names remain available from their entry files.
+
 Local file access, SMB access, audio playback, MusicBrainz integration, tag handling, CD ripping, and audio analysis should have independent service boundaries. External service responses and platform APIs must not be passed directly to the UI.
 
 ## Persistence
 
 Settings are stored with SharedPreferences. Library cache data is stored in a Drift SQLite database with source path, title, artist, album, file fingerprint, and last-seen timestamp. FTS5 search, keyset pagination, hash-deduplicated artwork, and lazy artwork loading support up to 100,000 tracks without materializing the whole library in memory. Audio files are never copied into the database. Files in the selected local directory or SMB share remain the source of truth.
+
+`LibrarySourceStore` owns the selected source, the last local fallback, restoration of macOS directory access, and correction of legacy cache `source_key` values. The `LibraryRepository` implementation remains responsible for search, pagination, and transactional application of scan results while preserving the existing SharedPreferences keys and Drift schema.
 
 Library rescans run asynchronously without replacing the UI state with a loading state, so the previously loaded cache page remains available until completion. After success, track and group data are reloaded. On failure, the cache stays visible and the failure is exposed as a recoverable warning.
 
@@ -25,6 +29,8 @@ The cache also stores FLAC disc and track numbers plus a metadata parser version
 The local directory scanner walks subdirectories recursively and currently treats FLAC and MP3 files as library candidates. Local scans read embedded MP3 ID3 and FLAC Vorbis metadata through `audio_metadata_reader`, including artwork up to 2 MB, then fall back to path-derived metadata when tags are unavailable. Metadata and artwork are cached in the Drift library table. Additional formats and tag parsing belong behind the scanner and metadata service boundaries.
 
 Audio playback is accessed through the `PlaybackService` abstraction. The current implementation uses just_audio, its Windows implementation, and the native Darwin implementation to play files by path. Play-all order is stored in a temporary SQLite queue and only the track at the current position is resolved. The UI observes service state instead of depending directly on the playback engine.
+
+`PlaybackAudioSourceResolver` owns creation of local-file and SMB-stream `AudioSource` instances and disposal of the active SMB stream. Desktop real-time spectrum implementations share an EventChannel adapter for PCM buffering and spectrum conversion, leaving only the channel name in the Windows and macOS-specific classes.
 
 Internet radio stations are represented by `InternetRadioStation` and managed through `RadioStationRepository`. Station data is stored in SharedPreferences and converted to `AudioSource.uri` for playback. Web page URLs are not treated as stream URLs; the input is validated and tested with just_audio before saving.
 

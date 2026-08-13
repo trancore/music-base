@@ -6,8 +6,8 @@ import 'package:just_audio_background/just_audio_background.dart';
 
 import '../../domain/library/library_track.dart';
 import '../../domain/playback/playback_service.dart';
-import '../../domain/library/smb_service.dart';
 import '../../domain/radio/internet_radio_station.dart';
+import 'playback_audio_source_resolver.dart';
 import 'smb_audio_source.dart';
 
 class JustAudioPlaybackService extends ChangeNotifier
@@ -47,8 +47,9 @@ class JustAudioPlaybackService extends ChangeNotifier
 
   final AudioPlayer _player;
   final SmbPlaybackSourceFactory? remoteSourceFactory;
+  late final PlaybackAudioSourceResolver _sourceResolver =
+      PlaybackAudioSourceResolver(remoteSourceFactory);
   late final List<StreamSubscription<dynamic>> _subscriptions;
-  SmbStreamAudioSource? _activeRemoteSource;
   List<LibraryTrack> _queue = const [];
   PlaybackQueueSource? _lazyQueue;
   InternetRadioStation? _currentRadioStation;
@@ -68,8 +69,7 @@ class JustAudioPlaybackService extends ChangeNotifier
 
   @override
   Future<void> playRadioStation(InternetRadioStation station) async {
-    await _activeRemoteSource?.close();
-    _activeRemoteSource = null;
+    await _sourceResolver.closeActiveRemoteSource();
     _queue = const [];
     await _lazyQueue?.dispose();
     _lazyQueue = null;
@@ -123,8 +123,6 @@ class JustAudioPlaybackService extends ChangeNotifier
       album: track.album,
     );
     try {
-      await _activeRemoteSource?.close();
-      _activeRemoteSource = null;
       _snapshot = PlaybackSnapshot(
         currentTrack: track,
         currentRadioStation: null,
@@ -139,18 +137,8 @@ class JustAudioPlaybackService extends ChangeNotifier
         errorMessage: null,
       );
       notifyListeners();
-      if (track.isRemote) {
-        final factory = remoteSourceFactory;
-        if (factory == null) {
-          throw const SmbConnectionException('SMB playback is not configured.');
-        }
-        _activeRemoteSource = await factory.create(track, tag: mediaItem);
-        await _player.setAudioSource(_activeRemoteSource!);
-      } else {
-        await _player.setAudioSource(
-          AudioSource.file(track.sourcePath, tag: mediaItem),
-        );
-      }
+      final source = await _sourceResolver.resolveTrack(track, tag: mediaItem);
+      await _player.setAudioSource(source);
       await _player.play();
     } on PlayerException catch (error) {
       _setError('Unable to play this file: ${error.message ?? error.code}');
@@ -300,9 +288,8 @@ class JustAudioPlaybackService extends ChangeNotifier
     for (final subscription in _subscriptions) {
       subscription.cancel();
     }
-    _activeRemoteSource?.close();
+    _sourceResolver.dispose();
     _stopRadioClock();
-    remoteSourceFactory?.dispose();
     _player.dispose();
     super.dispose();
   }
