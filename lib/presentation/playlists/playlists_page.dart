@@ -16,6 +16,16 @@ import '../../domain/library/library_track.dart';
 import '../../domain/playlist/playlist.dart';
 import 'auto_playlist_preview.dart';
 
+typedef PlaylistFilePicker = Future<List<XFile>> Function();
+
+final playlistFilePickerProvider = Provider<PlaylistFilePicker>((ref) {
+  return () => openFiles(
+    acceptedTypeGroups: const [
+      XTypeGroup(label: 'Playlist files', extensions: ['m3u', 'm3u8', 'mbp']),
+    ],
+  );
+});
+
 class PlaylistsPage extends ConsumerWidget {
   const PlaylistsPage({super.key});
 
@@ -35,7 +45,7 @@ class PlaylistsPage extends ConsumerWidget {
             icon: const Icon(Icons.create_new_folder_outlined),
           ),
           IconButton(
-            tooltip: 'Import playlist file',
+            tooltip: 'Import playlist files',
             onPressed: () => _importPlaylist(context, ref, notifier),
             icon: const Icon(Icons.file_open_outlined),
           ),
@@ -237,68 +247,99 @@ class PlaylistsPage extends ConsumerWidget {
     WidgetRef ref,
     PlaylistNotifier notifier,
   ) async {
-    const typeGroup = XTypeGroup(
-      label: 'Playlist files',
-      extensions: ['m3u', 'm3u8', 'mbp'],
-    );
-    final file = await openFile(acceptedTypeGroups: const [typeGroup]);
-    if (file == null) return;
+    final files = await ref.read(playlistFilePickerProvider)();
+    if (files.isEmpty) return;
 
-    try {
-      final bytes = await file.readAsBytes();
-      final ({String name, List<String> trackPaths}) imported;
-      if (p.extension(file.path).toLowerCase() == '.mbp') {
-        final result = const MusicBeePlaylistParser().parseBytes(
-          bytes,
-          sourcePath: file.path,
-        );
-        imported = (name: result.name, trackPaths: result.trackPaths);
-      } else {
-        final result = const M3uPlaylistParser().parseBytes(
-          bytes,
-          sourcePath: file.path,
-        );
-        imported = (name: result.name, trackPaths: result.trackPaths);
+    var importedPlaylists = 0;
+    var importedTracks = 0;
+    var availableTracks = 0;
+    var skippedPlaylists = 0;
+    final failures = <String>[];
+    for (final file in files) {
+      if (!context.mounted) return;
+      try {
+        final result = await _importPlaylistFile(context, ref, notifier, file);
+        if (!context.mounted) return;
+        if (result == null) {
+          skippedPlaylists++;
+        } else {
+          importedPlaylists++;
+          importedTracks += result.trackCount;
+          availableTracks += result.availableCount;
+        }
+      } on Object catch (error) {
+        failures.add('${p.basename(file.path)}: $error');
       }
-      if (imported.trackPaths.isEmpty) {
-        throw const FormatException('The playlist contains no track paths.');
-      }
-      final preview = await ref
-          .read(playlistImportResolverProvider)
-          .resolve(name: imported.name, paths: imported.trackPaths);
-      final folders = await ref.read(playlistRepositoryProvider).loadFolders();
-      if (!context.mounted) return;
-      final confirmation = await showDialog<_PlaylistImportConfirmationResult>(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => _PlaylistImportConfirmationDialog(
-          preview: preview,
-          folders: folders,
-        ),
-      );
-      if (!context.mounted || confirmation == null) return;
-      final selectedMapping = confirmation.mapping;
-      final resolvedPaths = preview.resolvedPaths(selectedMapping);
-      await notifier.importPlaylist(
-        imported.name,
-        resolvedPaths,
-        parentFolderId: confirmation.parentFolderId,
-      );
-      if (!context.mounted) return;
-      final available = preview.availableCount(selectedMapping);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Imported ${imported.trackPaths.length} tracks ($available available).',
-          ),
-        ),
-      );
-    } on Object catch (error) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not import playlist: $error')),
-      );
     }
+
+    if (!context.mounted) return;
+    final details = <String>[
+      '$importedPlaylists imported',
+      if (skippedPlaylists > 0) '$skippedPlaylists skipped',
+      if (failures.isNotEmpty) '${failures.length} failed',
+    ].join(' · ');
+    final shownFailures = failures.take(3).join(' | ');
+    final remainingFailures = failures.length - 3;
+    final failureDetails = failures.isEmpty
+        ? ''
+        : ' $shownFailures'
+              '${remainingFailures > 0 ? ' | +$remainingFailures more' : ''}';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '$details ($importedTracks tracks, $availableTracks available).'
+          '$failureDetails',
+        ),
+      ),
+    );
+  }
+
+  Future<_PlaylistFileImportOutcome?> _importPlaylistFile(
+    BuildContext context,
+    WidgetRef ref,
+    PlaylistNotifier notifier,
+    XFile file,
+  ) async {
+    final bytes = await file.readAsBytes();
+    final ({String name, List<String> trackPaths}) imported;
+    if (p.extension(file.path).toLowerCase() == '.mbp') {
+      final result = const MusicBeePlaylistParser().parseBytes(
+        bytes,
+        sourcePath: file.path,
+      );
+      imported = (name: result.name, trackPaths: result.trackPaths);
+    } else {
+      final result = const M3uPlaylistParser().parseBytes(
+        bytes,
+        sourcePath: file.path,
+      );
+      imported = (name: result.name, trackPaths: result.trackPaths);
+    }
+    if (imported.trackPaths.isEmpty) {
+      throw const FormatException('The playlist contains no track paths.');
+    }
+    final preview = await ref
+        .read(playlistImportResolverProvider)
+        .resolve(name: imported.name, paths: imported.trackPaths);
+    final folders = await ref.read(playlistRepositoryProvider).loadFolders();
+    if (!context.mounted) return null;
+    final confirmation = await showDialog<_PlaylistImportConfirmationResult>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) =>
+          _PlaylistImportConfirmationDialog(preview: preview, folders: folders),
+    );
+    if (!context.mounted || confirmation == null) return null;
+    final selectedMapping = confirmation.mapping;
+    await notifier.importPlaylist(
+      imported.name,
+      preview.resolvedPaths(selectedMapping),
+      parentFolderId: confirmation.parentFolderId,
+    );
+    return _PlaylistFileImportOutcome(
+      trackCount: imported.trackPaths.length,
+      availableCount: preview.availableCount(selectedMapping),
+    );
   }
 
   Future<void> _editPlaylist(
@@ -915,6 +956,16 @@ class _PlaylistImportConfirmationResult {
   final String? parentFolderId;
 }
 
+class _PlaylistFileImportOutcome {
+  const _PlaylistFileImportOutcome({
+    required this.trackCount,
+    required this.availableCount,
+  });
+
+  final int trackCount;
+  final int availableCount;
+}
+
 class _PlaylistImportConfirmationDialogState
     extends State<_PlaylistImportConfirmationDialog> {
   PlaylistRootMappingCandidate? _mapping;
@@ -994,7 +1045,7 @@ class _PlaylistImportConfirmationDialogState
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: const Text('Skip'),
         ),
         FilledButton(
           onPressed: () => Navigator.of(

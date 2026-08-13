@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -40,7 +44,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byTooltip('Import playlist file'), findsOneWidget);
+    expect(find.byTooltip('Import playlist files'), findsOneWidget);
     expect(find.text('Parent'), findsOneWidget);
     expect(find.text('Child'), findsOneWidget);
     expect(find.text('Nested playlist'), findsOneWidget);
@@ -77,6 +81,54 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('Sample folder'), findsOneWidget);
   });
+
+  testWidgets('imports multiple selected playlist files in sequence', (
+    tester,
+  ) async {
+    final playlistRepository = _TreePlaylistRepository(
+      folders: [],
+      playlists: [],
+    );
+    final files = [
+      XFile.fromData(
+        Uint8List.fromList(utf8.encode('#EXTM3U\n/sample/one.flac\n')),
+        path: '/tmp/First sample.m3u',
+      ),
+      XFile.fromData(
+        Uint8List.fromList(utf8.encode('#EXTM3U\n/sample/two.flac\n')),
+        path: '/tmp/Second sample.m3u',
+      ),
+    ];
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          playlistRepositoryProvider.overrideWithValue(playlistRepository),
+          libraryRepositoryProvider.overrideWithValue(
+            const _EmptyLibraryRepository(),
+          ),
+          playlistFilePickerProvider.overrideWithValue(() async => files),
+        ],
+        child: const MaterialApp(home: PlaylistsPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Import playlist files'));
+    await tester.pumpAndSettle();
+    expect(find.text('First sample'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Import'));
+    await tester.pumpAndSettle();
+    expect(find.text('Second sample'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Import'));
+    await tester.pumpAndSettle();
+
+    expect(playlistRepository.playlists.map((entry) => entry.name), [
+      'First sample',
+      'Second sample',
+    ]);
+    expect(find.textContaining('2 imported'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 class _TreePlaylistRepository implements PlaylistRepository {
@@ -91,7 +143,11 @@ class _TreePlaylistRepository implements PlaylistRepository {
   Future<List<PlaylistFolder>> loadFolders() async =>
       List.unmodifiable(folders);
   @override
-  Future<void> save(Playlist playlist) async {}
+  Future<void> save(Playlist playlist) async {
+    playlists.removeWhere((entry) => entry.id == playlist.id);
+    playlists.add(playlist);
+  }
+
   @override
   Future<void> saveAll(List<Playlist> playlists) async {}
   @override
