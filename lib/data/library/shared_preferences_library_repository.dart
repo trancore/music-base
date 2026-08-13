@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../domain/library/library_repository.dart';
 import '../../domain/library/library_query.dart';
+import '../../domain/library/library_path_normalizer.dart';
 import '../../domain/library/local_directory_access_service.dart';
 import '../../domain/library/library_scanner.dart';
 import '../../domain/library/library_track.dart' as domain;
@@ -234,19 +235,25 @@ class SharedPreferencesLibraryRepository implements LibraryRepository {
   ) async {
     final requested = paths.toList(growable: false);
     if (requested.isEmpty) return const [];
+    final source = _preferences.getString(_sourcePathKey) ?? '';
+    final comparisonPaths = requested
+        .map(normalizeLibraryComparisonPath)
+        .toList(growable: false);
     final rows = <db.LibraryTrack>[];
     // Keep each IN clause comfortably below SQLite's host-parameter limit.
     for (var start = 0; start < requested.length; start += 400) {
       final end = math.min(start + 400, requested.length);
       rows.addAll(
         await (_database.select(_database.libraryTracks)..where(
-              (row) => row.sourcePath.isIn(requested.sublist(start, end)),
+              (row) =>
+                  row.sourceKey.equals(source) &
+                  row.comparisonPath.isIn(comparisonPaths.sublist(start, end)),
             ))
             .get(),
       );
     }
-    final byPath = {for (final row in rows) row.sourcePath: _toDomain(row)};
-    return requested
+    final byPath = {for (final row in rows) row.comparisonPath: _toDomain(row)};
+    return comparisonPaths
         .map((path) => byPath[path])
         .whereType<domain.LibraryTrack>()
         .toList();
@@ -390,6 +397,7 @@ class SharedPreferencesLibraryRepository implements LibraryRepository {
           : null;
       final companion = db.LibraryTracksCompanion.insert(
         sourcePath: track.sourcePath,
+        comparisonPath: Value(normalizeLibraryComparisonPath(track.sourcePath)),
         sourceKey: Value(sourcePath),
         title: Value(track.title),
         artist: Value(track.artist),

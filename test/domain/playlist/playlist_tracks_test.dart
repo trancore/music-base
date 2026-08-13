@@ -6,13 +6,13 @@ import 'package:music_base/domain/playlist/playlist_tracks.dart';
 void main() {
   const tracks = [
     LibraryTrack(
-      sourcePath: 'Z:/Music/category/one.flac',
+      sourcePath: 'X:/SampleLibrary/category/one.flac',
       title: 'track one',
       artist: 'sample artist',
       album: 'sample album',
     ),
     LibraryTrack(
-      sourcePath: 'Z:/Music/other/two.mp3',
+      sourcePath: 'X:/SampleLibrary/other/two.mp3',
       title: 'track two',
       artist: 'other artist',
     ),
@@ -34,9 +34,9 @@ void main() {
       id: 'manual',
       name: 'sample playlist',
       trackPaths: [
-        r'z:\music\other\two.mp3',
-        'Z:/Music/category/one.flac',
-        'Z:/Music/missing.flac',
+        r'x:\samplelibrary\other\two.mp3',
+        'X:/SampleLibrary/category/one.flac',
+        'X:/SampleLibrary/missing.flac',
       ],
     );
 

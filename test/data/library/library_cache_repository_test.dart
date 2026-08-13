@@ -7,6 +7,8 @@ import 'package:music_base/data/database/app_database.dart';
 import 'package:music_base/data/library/local_directory_library_scanner.dart';
 import 'package:music_base/data/library/shared_preferences_library_repository.dart';
 import 'package:music_base/data/library/smb_library_scanner.dart';
+import 'package:music_base/app/playlist_import_resolver.dart';
+import 'package:music_base/domain/library/library_path_normalizer.dart';
 import 'package:music_base/domain/library/library_query.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -232,5 +234,117 @@ void main() {
     expect(second?.sourcePath, '/music/1.flac');
     await repository.deletePlaybackQueue(queue.id);
     expect(await repository.loadPlaybackQueueTrack(queue.id, 0), isNull);
+  });
+
+  test('resolves normalized paths across the full active source', () async {
+    await repository.saveSourcePath(r'X:\SampleLibrary');
+    for (final entry in [
+      (path: r'X:\SampleLibrary\Album\One.flac', source: r'X:\SampleLibrary'),
+      (path: r'X:\SampleLibrary\Album\Two.flac', source: r'X:\SampleLibrary'),
+      (path: r'X:\OtherSample\Album\One.flac', source: r'X:\OtherSample'),
+    ]) {
+      await database
+          .into(database.libraryTracks)
+          .insert(
+            LibraryTracksCompanion.insert(
+              sourcePath: entry.path,
+              comparisonPath: Value(normalizeLibraryComparisonPath(entry.path)),
+              sourceKey: Value(entry.source),
+            ),
+          );
+    }
+
+    final result = await repository.resolveTrackPaths([
+      'x:/samplelibrary/album/two.flac',
+      'X:/SAMPLELIBRARY/ALBUM/ONE.FLAC',
+      'x:/samplelibrary/album/two.flac',
+      'X:/OtherSample/Album/One.flac',
+    ]);
+
+    expect(result.map((track) => track.sourcePath), [
+      r'X:\SampleLibrary\Album\Two.flac',
+      r'X:\SampleLibrary\Album\One.flac',
+      r'X:\SampleLibrary\Album\Two.flac',
+    ]);
+  });
+
+  test(
+    'proposes a verified root mapping and preserves unresolved paths',
+    () async {
+      await repository.saveSourcePath('/Volumes/Music');
+      for (final path in [
+        '/Volumes/Music/Album/One.flac',
+        '/Volumes/Music/Album/Two.flac',
+      ]) {
+        await database
+            .into(database.libraryTracks)
+            .insert(
+              LibraryTracksCompanion.insert(
+                sourcePath: path,
+                comparisonPath: Value(normalizeLibraryComparisonPath(path)),
+                sourceKey: const Value('/Volumes/Music'),
+              ),
+            );
+      }
+
+      final preview = await PlaylistImportResolver(repository).resolve(
+        name: 'Imported collection',
+        paths: const [
+          'X:/SampleLibrary/Album/One.flac',
+          'X:/SampleLibrary/Album/Two.flac',
+          'X:/SampleLibrary/Album/Missing.flac',
+        ],
+      );
+      final mapping = preview.mappingCandidates.first;
+
+      expect(mapping.sourcePrefix, 'X:/SampleLibrary');
+      expect(mapping.targetRoot, '/Volumes/Music');
+      expect(mapping.resolvedCount, 2);
+      expect(preview.resolvedPaths(mapping), [
+        '/Volumes/Music/Album/One.flac',
+        '/Volumes/Music/Album/Two.flac',
+        'X:/SampleLibrary/Album/Missing.flac',
+      ]);
+      expect(preview.availableCount(mapping), 2);
+    },
+  );
+
+  test('maps Windows M3U paths to encoded SMB library paths', () async {
+    const source = 'smb://files.example.test/music-share';
+    await repository.saveSourcePath(source);
+    const encodedPaths = [
+      'smb://files.example.test/music-share/Audio/'
+          '%E9%9F%B3%E6%A5%BD/%E3%82%B3%E3%83%AC%E3%82%AF%E3%82%B7%E3%83%A7%E3%83%B3/'
+          'Example%20Label/Sample%20Artist/01-%C3%89tude.flac',
+      'smb://files.example.test/music-share/Audio/'
+          '%E9%9F%B3%E6%A5%BD/%E3%82%B3%E3%83%AC%E3%82%AF%E3%82%B7%E3%83%A7%E3%83%B3/'
+          'Example%20Label/Sample%20Artist/02-Rondo.flac',
+    ];
+    for (final path in encodedPaths) {
+      await database
+          .into(database.libraryTracks)
+          .insert(
+            LibraryTracksCompanion.insert(
+              sourcePath: path,
+              comparisonPath: Value(normalizeLibraryComparisonPath(path)),
+              sourceKey: const Value(source),
+            ),
+          );
+    }
+
+    final preview = await PlaylistImportResolver(repository).resolve(
+      name: 'Imported collection',
+      paths: const [
+        'X:/Audio/音楽/コレクション/Example Label/'
+            'Sample Artist/01-Étude.flac',
+        'X:/Audio/音楽/コレクション/Example Label/'
+            'Sample Artist/02-Rondo.flac',
+      ],
+    );
+    final mapping = preview.mappingCandidates.first;
+
+    expect(mapping.sourcePrefix, 'X:');
+    expect(mapping.resolvedCount, 2);
+    expect(preview.resolvedPaths(mapping), encodedPaths);
   });
 }

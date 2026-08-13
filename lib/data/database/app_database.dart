@@ -1,6 +1,8 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
+import '../../domain/library/library_path_normalizer.dart';
+
 part 'app_database.g.dart';
 
 class LibraryArtworks extends Table {
@@ -15,6 +17,8 @@ class LibraryTracks extends Table {
   IntColumn get id => integer().autoIncrement()();
 
   TextColumn get sourcePath => text().unique()();
+
+  TextColumn get comparisonPath => text().withDefault(const Constant(''))();
 
   TextColumn get sourceKey => text().withDefault(const Constant(''))();
 
@@ -62,7 +66,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -87,9 +91,42 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(libraryTracks, libraryTracks.trackNumber);
         await m.addColumn(libraryTracks, libraryTracks.metadataVersion);
       }
+      if (from < 6) {
+        final columns = await customSelect(
+          'PRAGMA table_info(library_tracks)',
+        ).get();
+        final hasComparisonPath = columns.any(
+          (row) => row.read<String>('name') == 'comparison_path',
+        );
+        if (!hasComparisonPath) {
+          await m.addColumn(libraryTracks, libraryTracks.comparisonPath);
+        }
+      }
+      if (from < 7) {
+        final rows = await customSelect(
+          'SELECT id, source_path FROM library_tracks',
+          readsFrom: {libraryTracks},
+        ).get();
+        for (final row in rows) {
+          await customUpdate(
+            'UPDATE library_tracks SET comparison_path = ? WHERE id = ?',
+            variables: [
+              Variable.withString(
+                normalizeLibraryComparisonPath(row.read<String>('source_path')),
+              ),
+              Variable.withInt(row.read<int>('id')),
+            ],
+            updates: {libraryTracks},
+          );
+        }
+      }
     },
     beforeOpen: (details) async {
       await delete(playbackQueueEntries).go();
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS library_tracks_source_comparison_path '
+        'ON library_tracks(source_key, comparison_path)',
+      );
       await customStatement(
         'CREATE INDEX IF NOT EXISTS library_tracks_source_title '
         'ON library_tracks(source_key, title, id)',

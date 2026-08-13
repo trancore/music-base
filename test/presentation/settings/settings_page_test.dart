@@ -56,10 +56,10 @@ void main() {
 
   testWidgets('restores saved SMB source values in the form', (tester) async {
     const source = SmbSource(
-      host: '192.168.0.216',
-      share: 'file-server',
-      subfolder: 'Music',
-      username: 'kosuke',
+      host: 'files.example.test',
+      share: 'music-share',
+      subfolder: 'Audio',
+      username: 'sample-user',
     );
     SharedPreferences.setMockInitialValues({});
     final preferences = await SharedPreferences.getInstance();

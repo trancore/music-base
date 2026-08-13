@@ -290,6 +290,18 @@ class $LibraryTracksTable extends LibraryTracks
     requiredDuringInsert: true,
     defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
   );
+  static const VerificationMeta _comparisonPathMeta = const VerificationMeta(
+    'comparisonPath',
+  );
+  @override
+  late final GeneratedColumn<String> comparisonPath = GeneratedColumn<String>(
+    'comparison_path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _sourceKeyMeta = const VerificationMeta(
     'sourceKey',
   );
@@ -437,6 +449,7 @@ class $LibraryTracksTable extends LibraryTracks
   List<GeneratedColumn> get $columns => [
     id,
     sourcePath,
+    comparisonPath,
     sourceKey,
     title,
     artist,
@@ -473,6 +486,15 @@ class $LibraryTracksTable extends LibraryTracks
       );
     } else if (isInserting) {
       context.missing(_sourcePathMeta);
+    }
+    if (data.containsKey('comparison_path')) {
+      context.handle(
+        _comparisonPathMeta,
+        comparisonPath.isAcceptableOrUnknown(
+          data['comparison_path']!,
+          _comparisonPathMeta,
+        ),
+      );
     }
     if (data.containsKey('source_key')) {
       context.handle(
@@ -581,6 +603,10 @@ class $LibraryTracksTable extends LibraryTracks
         DriftSqlType.string,
         data['${effectivePrefix}source_path'],
       )!,
+      comparisonPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}comparison_path'],
+      )!,
       sourceKey: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}source_key'],
@@ -645,6 +671,7 @@ class $LibraryTracksTable extends LibraryTracks
 class LibraryTrack extends DataClass implements Insertable<LibraryTrack> {
   final int id;
   final String sourcePath;
+  final String comparisonPath;
   final String sourceKey;
   final String? title;
   final String? artist;
@@ -661,6 +688,7 @@ class LibraryTrack extends DataClass implements Insertable<LibraryTrack> {
   const LibraryTrack({
     required this.id,
     required this.sourcePath,
+    required this.comparisonPath,
     required this.sourceKey,
     this.title,
     this.artist,
@@ -680,6 +708,7 @@ class LibraryTrack extends DataClass implements Insertable<LibraryTrack> {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
     map['source_path'] = Variable<String>(sourcePath);
+    map['comparison_path'] = Variable<String>(comparisonPath);
     map['source_key'] = Variable<String>(sourceKey);
     if (!nullToAbsent || title != null) {
       map['title'] = Variable<String>(title);
@@ -720,6 +749,7 @@ class LibraryTrack extends DataClass implements Insertable<LibraryTrack> {
     return LibraryTracksCompanion(
       id: Value(id),
       sourcePath: Value(sourcePath),
+      comparisonPath: Value(comparisonPath),
       sourceKey: Value(sourceKey),
       title: title == null && nullToAbsent
           ? const Value.absent()
@@ -764,6 +794,7 @@ class LibraryTrack extends DataClass implements Insertable<LibraryTrack> {
     return LibraryTrack(
       id: serializer.fromJson<int>(json['id']),
       sourcePath: serializer.fromJson<String>(json['sourcePath']),
+      comparisonPath: serializer.fromJson<String>(json['comparisonPath']),
       sourceKey: serializer.fromJson<String>(json['sourceKey']),
       title: serializer.fromJson<String?>(json['title']),
       artist: serializer.fromJson<String?>(json['artist']),
@@ -785,6 +816,7 @@ class LibraryTrack extends DataClass implements Insertable<LibraryTrack> {
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'sourcePath': serializer.toJson<String>(sourcePath),
+      'comparisonPath': serializer.toJson<String>(comparisonPath),
       'sourceKey': serializer.toJson<String>(sourceKey),
       'title': serializer.toJson<String?>(title),
       'artist': serializer.toJson<String?>(artist),
@@ -804,6 +836,7 @@ class LibraryTrack extends DataClass implements Insertable<LibraryTrack> {
   LibraryTrack copyWith({
     int? id,
     String? sourcePath,
+    String? comparisonPath,
     String? sourceKey,
     Value<String?> title = const Value.absent(),
     Value<String?> artist = const Value.absent(),
@@ -820,6 +853,7 @@ class LibraryTrack extends DataClass implements Insertable<LibraryTrack> {
   }) => LibraryTrack(
     id: id ?? this.id,
     sourcePath: sourcePath ?? this.sourcePath,
+    comparisonPath: comparisonPath ?? this.comparisonPath,
     sourceKey: sourceKey ?? this.sourceKey,
     title: title.present ? title.value : this.title,
     artist: artist.present ? artist.value : this.artist,
@@ -840,6 +874,9 @@ class LibraryTrack extends DataClass implements Insertable<LibraryTrack> {
       sourcePath: data.sourcePath.present
           ? data.sourcePath.value
           : this.sourcePath,
+      comparisonPath: data.comparisonPath.present
+          ? data.comparisonPath.value
+          : this.comparisonPath,
       sourceKey: data.sourceKey.present ? data.sourceKey.value : this.sourceKey,
       title: data.title.present ? data.title.value : this.title,
       artist: data.artist.present ? data.artist.value : this.artist,
@@ -873,6 +910,7 @@ class LibraryTrack extends DataClass implements Insertable<LibraryTrack> {
     return (StringBuffer('LibraryTrack(')
           ..write('id: $id, ')
           ..write('sourcePath: $sourcePath, ')
+          ..write('comparisonPath: $comparisonPath, ')
           ..write('sourceKey: $sourceKey, ')
           ..write('title: $title, ')
           ..write('artist: $artist, ')
@@ -894,6 +932,7 @@ class LibraryTrack extends DataClass implements Insertable<LibraryTrack> {
   int get hashCode => Object.hash(
     id,
     sourcePath,
+    comparisonPath,
     sourceKey,
     title,
     artist,
@@ -914,6 +953,7 @@ class LibraryTrack extends DataClass implements Insertable<LibraryTrack> {
       (other is LibraryTrack &&
           other.id == this.id &&
           other.sourcePath == this.sourcePath &&
+          other.comparisonPath == this.comparisonPath &&
           other.sourceKey == this.sourceKey &&
           other.title == this.title &&
           other.artist == this.artist &&
@@ -932,6 +972,7 @@ class LibraryTrack extends DataClass implements Insertable<LibraryTrack> {
 class LibraryTracksCompanion extends UpdateCompanion<LibraryTrack> {
   final Value<int> id;
   final Value<String> sourcePath;
+  final Value<String> comparisonPath;
   final Value<String> sourceKey;
   final Value<String?> title;
   final Value<String?> artist;
@@ -948,6 +989,7 @@ class LibraryTracksCompanion extends UpdateCompanion<LibraryTrack> {
   const LibraryTracksCompanion({
     this.id = const Value.absent(),
     this.sourcePath = const Value.absent(),
+    this.comparisonPath = const Value.absent(),
     this.sourceKey = const Value.absent(),
     this.title = const Value.absent(),
     this.artist = const Value.absent(),
@@ -965,6 +1007,7 @@ class LibraryTracksCompanion extends UpdateCompanion<LibraryTrack> {
   LibraryTracksCompanion.insert({
     this.id = const Value.absent(),
     required String sourcePath,
+    this.comparisonPath = const Value.absent(),
     this.sourceKey = const Value.absent(),
     this.title = const Value.absent(),
     this.artist = const Value.absent(),
@@ -982,6 +1025,7 @@ class LibraryTracksCompanion extends UpdateCompanion<LibraryTrack> {
   static Insertable<LibraryTrack> custom({
     Expression<int>? id,
     Expression<String>? sourcePath,
+    Expression<String>? comparisonPath,
     Expression<String>? sourceKey,
     Expression<String>? title,
     Expression<String>? artist,
@@ -999,6 +1043,7 @@ class LibraryTracksCompanion extends UpdateCompanion<LibraryTrack> {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (sourcePath != null) 'source_path': sourcePath,
+      if (comparisonPath != null) 'comparison_path': comparisonPath,
       if (sourceKey != null) 'source_key': sourceKey,
       if (title != null) 'title': title,
       if (artist != null) 'artist': artist,
@@ -1018,6 +1063,7 @@ class LibraryTracksCompanion extends UpdateCompanion<LibraryTrack> {
   LibraryTracksCompanion copyWith({
     Value<int>? id,
     Value<String>? sourcePath,
+    Value<String>? comparisonPath,
     Value<String>? sourceKey,
     Value<String?>? title,
     Value<String?>? artist,
@@ -1035,6 +1081,7 @@ class LibraryTracksCompanion extends UpdateCompanion<LibraryTrack> {
     return LibraryTracksCompanion(
       id: id ?? this.id,
       sourcePath: sourcePath ?? this.sourcePath,
+      comparisonPath: comparisonPath ?? this.comparisonPath,
       sourceKey: sourceKey ?? this.sourceKey,
       title: title ?? this.title,
       artist: artist ?? this.artist,
@@ -1059,6 +1106,9 @@ class LibraryTracksCompanion extends UpdateCompanion<LibraryTrack> {
     }
     if (sourcePath.present) {
       map['source_path'] = Variable<String>(sourcePath.value);
+    }
+    if (comparisonPath.present) {
+      map['comparison_path'] = Variable<String>(comparisonPath.value);
     }
     if (sourceKey.present) {
       map['source_key'] = Variable<String>(sourceKey.value);
@@ -1107,6 +1157,7 @@ class LibraryTracksCompanion extends UpdateCompanion<LibraryTrack> {
     return (StringBuffer('LibraryTracksCompanion(')
           ..write('id: $id, ')
           ..write('sourcePath: $sourcePath, ')
+          ..write('comparisonPath: $comparisonPath, ')
           ..write('sourceKey: $sourceKey, ')
           ..write('title: $title, ')
           ..write('artist: $artist, ')
@@ -1688,6 +1739,7 @@ typedef $$LibraryTracksTableCreateCompanionBuilder =
     LibraryTracksCompanion Function({
       Value<int> id,
       required String sourcePath,
+      Value<String> comparisonPath,
       Value<String> sourceKey,
       Value<String?> title,
       Value<String?> artist,
@@ -1706,6 +1758,7 @@ typedef $$LibraryTracksTableUpdateCompanionBuilder =
     LibraryTracksCompanion Function({
       Value<int> id,
       Value<String> sourcePath,
+      Value<String> comparisonPath,
       Value<String> sourceKey,
       Value<String?> title,
       Value<String?> artist,
@@ -1789,6 +1842,11 @@ class $$LibraryTracksTableFilterComposer
 
   ColumnFilters<String> get sourcePath => $composableBuilder(
     column: $table.sourcePath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get comparisonPath => $composableBuilder(
+    column: $table.comparisonPath,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1920,6 +1978,11 @@ class $$LibraryTracksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get comparisonPath => $composableBuilder(
+    column: $table.comparisonPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get sourceKey => $composableBuilder(
     column: $table.sourceKey,
     builder: (column) => ColumnOrderings(column),
@@ -2018,6 +2081,11 @@ class $$LibraryTracksTableAnnotationComposer
 
   GeneratedColumn<String> get sourcePath => $composableBuilder(
     column: $table.sourcePath,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get comparisonPath => $composableBuilder(
+    column: $table.comparisonPath,
     builder: (column) => column,
   );
 
@@ -2152,6 +2220,7 @@ class $$LibraryTracksTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<String> sourcePath = const Value.absent(),
+                Value<String> comparisonPath = const Value.absent(),
                 Value<String> sourceKey = const Value.absent(),
                 Value<String?> title = const Value.absent(),
                 Value<String?> artist = const Value.absent(),
@@ -2168,6 +2237,7 @@ class $$LibraryTracksTableTableManager
               }) => LibraryTracksCompanion(
                 id: id,
                 sourcePath: sourcePath,
+                comparisonPath: comparisonPath,
                 sourceKey: sourceKey,
                 title: title,
                 artist: artist,
@@ -2186,6 +2256,7 @@ class $$LibraryTracksTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 required String sourcePath,
+                Value<String> comparisonPath = const Value.absent(),
                 Value<String> sourceKey = const Value.absent(),
                 Value<String?> title = const Value.absent(),
                 Value<String?> artist = const Value.absent(),
@@ -2202,6 +2273,7 @@ class $$LibraryTracksTableTableManager
               }) => LibraryTracksCompanion.insert(
                 id: id,
                 sourcePath: sourcePath,
+                comparisonPath: comparisonPath,
                 sourceKey: sourceKey,
                 title: title,
                 artist: artist,
