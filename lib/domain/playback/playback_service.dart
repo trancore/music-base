@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../library/library_track.dart';
 import '../radio/internet_radio_station.dart';
 
@@ -35,7 +37,7 @@ class PlaybackSnapshot {
   final String? errorMessage;
 }
 
-abstract interface class PlaybackService {
+abstract interface class PlaybackService extends Listenable {
   PlaybackSnapshot get snapshot;
 
   Future<void> playTrack(LibraryTrack track);

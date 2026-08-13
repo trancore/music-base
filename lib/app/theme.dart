@@ -71,7 +71,11 @@ ThemeData buildTheme(Brightness brightness, Color accentColor) {
     ),
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: isDark ? const Color(0xFF111217) : Colors.white,
+      height: 76,
       indicatorColor: scheme.primary.withValues(alpha: 0.18),
+      indicatorShape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+      ),
       labelTextStyle: WidgetStatePropertyAll(
         const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
       ),

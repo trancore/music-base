@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:dart_smb2/dart_smb2.dart';
 import 'package:path/path.dart' as p;
 
@@ -45,6 +47,7 @@ class SmbLibraryScanner {
     List<LibraryTrack> tracks,
   ) async {
     final entries = await pool.listDirectory(directory);
+    final artwork = await _readFolderArtwork(pool, directory, entries);
     for (final entry in entries) {
       final remotePath = _join(directory, entry.name);
       if (entry.isDirectory) {
@@ -63,6 +66,7 @@ class SmbLibraryScanner {
             title: metadata.title,
             artist: metadata.artist,
             album: metadata.album,
+            artwork: artwork,
             lastSeenAt: entry.stat.modified,
           ),
         );
@@ -75,4 +79,25 @@ class SmbLibraryScanner {
 
   String _join(String directory, String name) =>
       directory.isEmpty ? name : '$directory/$name';
+
+  Future<Uint8List?> _readFolderArtwork(
+    Smb2Pool pool,
+    String directory,
+    List<Smb2DirEntry> entries,
+  ) async {
+    const names = {'cover.jpg', 'cover.jpeg', 'cover.png', 'folder.jpg'};
+    for (final entry in entries) {
+      if (!entry.isFile || !names.contains(entry.name.toLowerCase())) continue;
+      if (entry.size <= 0 || entry.size > 2 * 1024 * 1024) continue;
+      try {
+        return await pool.readFileRange(
+          _join(directory, entry.name),
+          length: entry.size,
+        );
+      } on Object {
+        // Artwork is optional; a broken cover must not hide the music files.
+      }
+    }
+    return null;
+  }
 }

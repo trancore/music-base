@@ -17,6 +17,7 @@ class RadioPage extends ConsumerWidget {
     final sort = ref.watch(radioStationSortProvider);
     return Scaffold(
       appBar: AppBar(
+        primary: false,
         title: const Text('Internet radio'),
         actions: [
           IconButton(
@@ -32,7 +33,7 @@ class RadioPage extends ConsumerWidget {
         ],
       ),
       body: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        padding: const EdgeInsets.fromLTRB(16, 2, 16, 24),
         child: stations.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, _) => Center(child: Text('$error')),
@@ -130,11 +131,15 @@ class RadioPage extends ConsumerWidget {
       try {
         await ref.read(radioStreamTesterProvider).test(result);
         await ref.read(radioStationProvider.notifier).save(result);
-      } on Object catch (error) {
+      } on Object {
         if (!context.mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Stream test failed: $error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Stream test failed. Check the stream URL and try again.',
+            ),
+          ),
+        );
       }
     }
   }
@@ -154,11 +159,15 @@ class RadioPage extends ConsumerWidget {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Added ${result.name}.')));
-    } on Object catch (error) {
+    } on Object {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Stream test failed: $error')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Stream test failed. Check the stream URL and try again.',
+          ),
+        ),
+      );
     }
   }
 
@@ -216,6 +225,44 @@ List<InternetRadioStation> _sortedStations(
   return sorted;
 }
 
+List<String> _radioTags(String? value) {
+  if (value == null || value.trim().isEmpty) return const [];
+  return value
+      .split(RegExp(r'[,;]'))
+      .map((tag) => tag.trim())
+      .where((tag) => tag.isNotEmpty)
+      .toSet()
+      .take(8)
+      .toList(growable: false);
+}
+
+class _GenreTags extends StatelessWidget {
+  const _GenreTags({required this.tags, this.large = false});
+
+  final List<String> tags;
+  final bool large;
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+    spacing: 6,
+    runSpacing: large ? 6 : 2,
+    children: [
+      for (final tag in tags)
+        Chip(
+          label: Text(tag),
+          visualDensity: VisualDensity.compact,
+          padding: EdgeInsets.zero,
+          labelStyle: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSecondaryContainer,
+            fontWeight: FontWeight.w600,
+          ),
+          backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+          side: BorderSide.none,
+        ),
+    ],
+  );
+}
+
 class _StationList extends StatelessWidget {
   const _StationList({
     required this.stations,
@@ -246,6 +293,7 @@ class _StationList extends StatelessWidget {
       return Card(
         key: ValueKey(station.id),
         margin: const EdgeInsets.only(bottom: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         child: ListTile(
           leading: Row(
             mainAxisSize: MainAxisSize.min,
@@ -259,18 +307,25 @@ class _StationList extends StatelessWidget {
                   ),
                 ),
               CircleAvatar(
+                radius: 24,
+                backgroundColor: isCurrent
+                    ? Theme.of(context).colorScheme.primaryContainer
+                    : Theme.of(context).colorScheme.surfaceContainerHighest,
+                foregroundColor: isCurrent
+                    ? Theme.of(context).colorScheme.onPrimaryContainer
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
                 child: Icon(isCurrent ? Icons.graphic_eq : Icons.radio),
               ),
             ],
           ),
-          title: Text(station.name),
-          subtitle: Text(
-            [
-              if (station.genre case final genre? when genre.trim().isNotEmpty)
-                genre,
-              station.streamUrl,
-            ].join(' • '),
+          title: Text(
+            station.name,
             maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          subtitle: Text(
+            station.streamUrl,
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
           isThreeLine: true,
@@ -296,10 +351,138 @@ class _StationList extends StatelessWidget {
               ),
             ],
           ),
+          onTap: () => showModalBottomSheet<void>(
+            context: context,
+            showDragHandle: true,
+            builder: (_) => _RadioStationDetailsSheet(
+              station: station,
+              isPlaying: isPlaying,
+              onPlay: () {
+                Navigator.of(context).pop();
+                if (!isPlaying) playback.playRadioStation(station);
+              },
+              onEdit: () {
+                Navigator.of(context).pop();
+                onEdit(station);
+              },
+              onDelete: () {
+                Navigator.of(context).pop();
+                onDelete(station);
+              },
+            ),
+          ),
         ),
       );
     },
   );
+}
+
+class _RadioStationDetailsSheet extends StatelessWidget {
+  const _RadioStationDetailsSheet({
+    required this.station,
+    required this.isPlaying,
+    required this.onPlay,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final InternetRadioStation station;
+  final bool isPlaying;
+  final VoidCallback onPlay;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final details = [
+      if (station.description case final description?
+          when description.trim().isNotEmpty)
+        ('Details', description),
+      ('Stream URL', station.streamUrl),
+    ];
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 30,
+                  backgroundColor: theme.colorScheme.primaryContainer,
+                  foregroundColor: theme.colorScheme.onPrimaryContainer,
+                  child: const Icon(Icons.radio, size: 30),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    station.name,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            if (_radioTags(station.genre).isNotEmpty) ...[
+              Text(
+                'Tags',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _GenreTags(tags: _radioTags(station.genre), large: true),
+              const SizedBox(height: 16),
+            ],
+            for (final detail in details) ...[
+              Text(
+                detail.$1,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              SelectableText(
+                detail.$2,
+                style: detail.$1 == 'Stream URL'
+                    ? theme.textTheme.bodySmall
+                    : theme.textTheme.bodyLarge,
+              ),
+              const SizedBox(height: 16),
+            ],
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: isPlaying ? null : onPlay,
+                    icon: Icon(isPlaying ? Icons.equalizer : Icons.play_arrow),
+                    label: Text(isPlaying ? 'Playing' : 'Play station'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filledTonal(
+                  tooltip: 'Edit station',
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.edit_outlined),
+                ),
+                IconButton.filledTonal(
+                  tooltip: 'Delete station',
+                  onPressed: onDelete,
+                  icon: const Icon(Icons.delete_outline),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _EmptyRadioState extends StatelessWidget {
@@ -362,93 +545,168 @@ class _RadioBrowserSearchDialogState
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Search Radio Browser'),
-    content: SizedBox(
-      width: 620,
-      height: 480,
-      child: Column(
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return AlertDialog(
+      titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+      contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+      title: Row(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _queryController,
-                  autofocus: true,
-                  textInputAction: TextInputAction.search,
-                  decoration: const InputDecoration(
-                    labelText: 'Station name',
-                    hintText: 'SomaFM, BBC, jazz...',
-                  ),
-                  onSubmitted: (_) => _search(),
-                ),
-              ),
-              const SizedBox(width: 12),
-              FilledButton(
-                onPressed: _busy ? null : _search,
-                child: const Text('Search'),
-              ),
-            ],
-          ),
-          if (_busy) const LinearProgressIndicator(),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  _error!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              ),
+          Icon(Icons.travel_explore, color: theme.colorScheme.primary),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text(
+              'Find a station',
+              style: TextStyle(fontWeight: FontWeight.w700),
             ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: _stations.isEmpty && !_busy
-                ? Center(
-                    child: Text(
-                      'Search for a station to see available streams.',
-                      style: Theme.of(context).textTheme.bodySmall,
-                      textAlign: TextAlign.center,
-                    ),
-                  )
-                : ListView.separated(
-                    itemCount: _stations.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
-                    itemBuilder: (context, index) {
-                      final station = _stations[index];
-                      return ListTile(
-                        title: Text(station.name),
-                        subtitle: Text(
-                          [
-                            if (station.tags case final tags?
-                                when tags.trim().isNotEmpty)
-                              tags,
-                            if (station.codec case final codec?
-                                when codec.trim().isNotEmpty)
-                              codec,
-                            if (station.bitrate case final bitrate?)
-                              '${bitrate}kbps',
-                          ].join(' • '),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        trailing: const Icon(Icons.add_circle_outline),
-                        onTap: () => Navigator.of(context).pop(station),
-                      );
-                    },
-                  ),
           ),
         ],
       ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.of(context).pop(),
-        child: const Text('Cancel'),
+      content: SizedBox(
+        width: 620,
+        height: 480,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Search Radio Browser by station name, genre, or country.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _queryController,
+                    autofocus: true,
+                    textInputAction: TextInputAction.search,
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.search),
+                      labelText: 'Search stations',
+                      hintText: 'SomaFM, BBC, jazz...',
+                    ),
+                    onSubmitted: (_) => _search(),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                FilledButton.icon(
+                  onPressed: _busy ? null : _search,
+                  icon: const Icon(Icons.search, size: 18),
+                  label: const Text('Search'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (_busy) const LinearProgressIndicator(minHeight: 2),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Text(
+                  _error!,
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
+              ),
+            if (_stations.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(
+                '${_stations.length} stations found',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
+            Expanded(
+              child: _stations.isEmpty && !_busy
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.radio_outlined,
+                            size: 40,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Search to discover internet radio stations.',
+                            style: theme.textTheme.bodySmall,
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      itemCount: _stations.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final station = _stations[index];
+                        final metadata = [
+                          if (station.tags case final tags?
+                              when tags.trim().isNotEmpty)
+                            tags,
+                          if (station.codec case final codec?
+                              when codec.trim().isNotEmpty)
+                            codec,
+                          if (station.bitrate case final bitrate?)
+                            '$bitrate kbps',
+                        ].join('  •  ');
+                        return Card(
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.fromLTRB(
+                              16,
+                              8,
+                              8,
+                              8,
+                            ),
+                            leading: CircleAvatar(
+                              backgroundColor: theme.colorScheme.primary
+                                  .withValues(alpha: 0.14),
+                              foregroundColor: theme.colorScheme.primary,
+                              child: const Icon(Icons.radio, size: 20),
+                            ),
+                            title: Text(
+                              station.name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: metadata.isEmpty
+                                ? null
+                                : Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text(
+                                      metadata,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                            trailing: IconButton.filledTonal(
+                              tooltip: 'Add station',
+                              onPressed: () =>
+                                  Navigator.of(context).pop(station),
+                              icon: const Icon(Icons.add),
+                            ),
+                            onTap: () => Navigator.of(context).pop(station),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
-    ],
-  );
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+      ],
+    );
+  }
 
   Future<void> _search() async {
     final query = _queryController.text.trim();
