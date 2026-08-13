@@ -12,10 +12,10 @@ A folder can be deleted only while empty. A folder cannot be moved into itself o
 
 ## Rationale
 
-M3U represents track order, not application-specific folder hierarchy. Persisting organization as independent user-managed data avoids inferring structure from media paths and keeps playlist organization separate from source changes and library rescans.
+M3U and MusicBee MBP represent track order, but not this application's folder hierarchy. Persisting organization as independent user-managed data avoids inferring structure from imported media paths and keeps playlist organization separate from source changes and library rescans.
 
 ## Consequences
 
-- An M3U import can target the top level or an existing folder.
+- A playlist-file import can target the top level or an existing folder.
 - Moving a playlist never moves its audio files.
 - Child folders and playlists must be moved or deleted before their folder can be deleted.

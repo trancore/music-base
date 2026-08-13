@@ -40,6 +40,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.byTooltip('Import playlist file'), findsOneWidget);
     expect(find.text('Parent'), findsOneWidget);
     expect(find.text('Child'), findsOneWidget);
     expect(find.text('Nested playlist'), findsOneWidget);

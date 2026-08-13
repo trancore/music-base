@@ -1,6 +1,7 @@
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 
 import '../../app/library_providers.dart';
 import '../../app/playback_providers.dart';
@@ -8,6 +9,7 @@ import '../../app/playlist_providers.dart';
 import '../../app/playlist_import_resolver.dart';
 import '../../data/playback/library_playback_queue.dart';
 import '../../data/playlist/m3u_playlist_parser.dart';
+import '../../data/playlist/musicbee_playlist_parser.dart';
 import '../../domain/library/library_query.dart';
 import '../../domain/library/library_path_normalizer.dart';
 import '../../domain/library/library_track.dart';
@@ -33,7 +35,7 @@ class PlaylistsPage extends ConsumerWidget {
             icon: const Icon(Icons.create_new_folder_outlined),
           ),
           IconButton(
-            tooltip: 'Import M3U playlist',
+            tooltip: 'Import playlist file',
             onPressed: () => _importPlaylist(context, ref, notifier),
             icon: const Icon(Icons.file_open_outlined),
           ),
@@ -73,7 +75,7 @@ class PlaylistsPage extends ConsumerWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Create a folder, playlist, or import an M3U file.',
+                              'Create a folder, playlist, or import a playlist file.',
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                           ],
@@ -236,17 +238,28 @@ class PlaylistsPage extends ConsumerWidget {
     PlaylistNotifier notifier,
   ) async {
     const typeGroup = XTypeGroup(
-      label: 'M3U playlists',
-      extensions: ['m3u', 'm3u8'],
+      label: 'Playlist files',
+      extensions: ['m3u', 'm3u8', 'mbp'],
     );
     final file = await openFile(acceptedTypeGroups: const [typeGroup]);
     if (file == null) return;
 
     try {
-      final imported = const M3uPlaylistParser().parseBytes(
-        await file.readAsBytes(),
-        sourcePath: file.path,
-      );
+      final bytes = await file.readAsBytes();
+      final ({String name, List<String> trackPaths}) imported;
+      if (p.extension(file.path).toLowerCase() == '.mbp') {
+        final result = const MusicBeePlaylistParser().parseBytes(
+          bytes,
+          sourcePath: file.path,
+        );
+        imported = (name: result.name, trackPaths: result.trackPaths);
+      } else {
+        final result = const M3uPlaylistParser().parseBytes(
+          bytes,
+          sourcePath: file.path,
+        );
+        imported = (name: result.name, trackPaths: result.trackPaths);
+      }
       if (imported.trackPaths.isEmpty) {
         throw const FormatException('The playlist contains no track paths.');
       }
@@ -918,7 +931,7 @@ class _PlaylistImportConfirmationDialogState
     final available = widget.preview.availableCount(_mapping);
     final unavailable = widget.preview.originalPaths.length - available;
     return AlertDialog(
-      title: const Text('Import M3U playlist'),
+      title: const Text('Import playlist file'),
       content: SizedBox(
         width: 560,
         child: Column(
