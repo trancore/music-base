@@ -24,9 +24,13 @@ class SharedPreferencesPlaylistRepository implements PlaylistRepository {
             (entry) => Playlist(
               id: entry['id'] as String,
               name: entry['name'] as String,
-              trackPaths: (entry['trackPaths'] as List)
+              trackPaths: (entry['trackPaths'] as List? ?? const [])
                   .whereType<String>()
                   .toList(),
+              type: entry['type'] == PlaylistType.automatic.name
+                  ? PlaylistType.automatic
+                  : PlaylistType.manual,
+              query: entry['query'] as String?,
             ),
           )
           .toList(growable: false);
@@ -45,6 +49,8 @@ class SharedPreferencesPlaylistRepository implements PlaylistRepository {
             'id': entry.id,
             'name': entry.name,
             'trackPaths': entry.trackPaths,
+            'type': entry.type.name,
+            if (entry.query != null) 'query': entry.query,
           },
         )
         .toList();
@@ -63,6 +69,8 @@ class SharedPreferencesPlaylistRepository implements PlaylistRepository {
                 'id': entry.id,
                 'name': entry.name,
                 'trackPaths': entry.trackPaths,
+                'type': entry.type.name,
+                if (entry.query != null) 'query': entry.query,
               },
             )
             .toList(),

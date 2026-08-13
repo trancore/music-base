@@ -32,7 +32,7 @@ The Android `RealtimeSpectrumService` passes the Android AudioSession ID exposed
 
 The Windows `RealtimeSpectrumService` implementation captures PCM frames from the default render device through the Windows SDK WASAPI loopback API and sends them to Flutter through an EventChannel. Flutter feeds each frame into `calculateSpectrum`. Frames are processed only in memory and are never saved as recordings.
 
-Playlists are persisted through the `PlaylistRepository` abstraction. The current implementation stores playlist names and source paths in SharedPreferences, then resolves those paths against the current library cache when a playlist is played. The create/edit UI selects library tracks and replaces the name and track list through `PlaylistNotifier`. Playlist data never copies the audio files.
+Playlists are persisted through the `PlaylistRepository` abstraction. SharedPreferences stores either a manual playlist's name and source paths or an auto playlist's name and match query. Manual playlists resolve paths against the current library cache at playback time; auto playlists apply their query to title, artist, album, and source path whenever they are displayed. `M3uPlaylistParser` converts UTF-8 M3U/M3U8 content into app path lists independently of file selection and UI state. Legacy persisted entries load as manual playlists. Playlist data never copies the audio files.
 
 MusicBrainz integration is accessed through `MusicBrainzService`. The API client maps JSON responses to `MusicBrainzRelease` models and applies an identifying User-Agent, a maximum request rate of one request per second, and an in-memory search-result cache.
 

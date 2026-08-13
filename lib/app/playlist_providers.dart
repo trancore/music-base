@@ -40,6 +40,34 @@ class PlaylistNotifier extends AsyncNotifier<List<Playlist>> {
     state = AsyncData(await _repository.loadAll());
   }
 
+  Future<void> createAutomatic(String name, String query) async {
+    final trimmedName = name.trim();
+    final trimmedQuery = query.trim();
+    if (trimmedName.isEmpty || trimmedQuery.isEmpty) return;
+    await _repository.save(
+      Playlist(
+        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        name: trimmedName,
+        type: PlaylistType.automatic,
+        query: trimmedQuery,
+      ),
+    );
+    state = AsyncData(await _repository.loadAll());
+  }
+
+  Future<void> importPlaylist(String name, List<String> trackPaths) async {
+    final trimmedName = name.trim();
+    if (trimmedName.isEmpty || trackPaths.isEmpty) return;
+    await _repository.save(
+      Playlist(
+        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        name: trimmedName,
+        trackPaths: List.unmodifiable(trackPaths),
+      ),
+    );
+    state = AsyncData(await _repository.loadAll());
+  }
+
   Future<void> updatePlaylist(
     String id,
     String name,
@@ -55,6 +83,21 @@ class PlaylistNotifier extends AsyncNotifier<List<Playlist>> {
           .toList(growable: false),
     );
     await _repository.save(playlist);
+    state = AsyncData(await _repository.loadAll());
+  }
+
+  Future<void> updateAutomatic(String id, String name, String query) async {
+    final trimmedName = name.trim();
+    final trimmedQuery = query.trim();
+    if (trimmedName.isEmpty || trimmedQuery.isEmpty) return;
+    await _repository.save(
+      Playlist(
+        id: id,
+        name: trimmedName,
+        type: PlaylistType.automatic,
+        query: trimmedQuery,
+      ),
+    );
     state = AsyncData(await _repository.loadAll());
   }
 

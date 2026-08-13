@@ -19,8 +19,8 @@ void main() {
     const firstTrack = LibraryTrack(sourcePath: '/Music/first.flac');
     const secondTrack = LibraryTrack(sourcePath: '/Music/second.mp3');
 
-    await notifier.create(' Favorites ', [firstTrack]);
-    expect(repository.playlists.single.name, 'Favorites');
+    await notifier.create(' Sample playlist ', [firstTrack]);
+    expect(repository.playlists.single.name, 'Sample playlist');
     expect(repository.playlists.single.trackPaths, ['/Music/first.flac']);
 
     await notifier.updatePlaylist(
@@ -33,6 +33,32 @@ void main() {
       '/Music/first.flac',
       '/Music/second.mp3',
     ]);
+  });
+
+  test('creates automatic and imported playlists', () async {
+    final repository = _FakePlaylistRepository();
+    final container = ProviderContainer(
+      overrides: [playlistRepositoryProvider.overrideWithValue(repository)],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(playlistProvider.future);
+    final notifier = container.read(playlistProvider.notifier);
+    await notifier.createAutomatic(' Matching tracks ', ' sample artist ');
+    expect(repository.playlists.single.type, PlaylistType.automatic);
+    expect(repository.playlists.single.query, 'sample artist');
+
+    await notifier.updateAutomatic(
+      repository.playlists.single.id,
+      'Updated matches',
+      'sample album',
+    );
+    expect(repository.playlists.single.name, 'Updated matches');
+    expect(repository.playlists.single.query, 'sample album');
+
+    await notifier.importPlaylist('Imported playlist', ['Z:/Music/one.flac']);
+    expect(repository.playlists.last.type, PlaylistType.manual);
+    expect(repository.playlists.last.trackPaths, ['Z:/Music/one.flac']);
   });
 }
 

@@ -1,11 +1,15 @@
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/library_providers.dart';
 import '../../app/playback_providers.dart';
 import '../../app/playlist_providers.dart';
+import '../../data/playlist/m3u_playlist_parser.dart';
 import '../../domain/library/library_track.dart';
 import '../../domain/playlist/playlist.dart';
+import '../../domain/playlist/playlist_tracks.dart';
+import 'auto_playlist_preview.dart';
 
 class PlaylistsPage extends ConsumerWidget {
   const PlaylistsPage({super.key});
@@ -21,6 +25,16 @@ class PlaylistsPage extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Playlists'),
         actions: [
+          IconButton(
+            tooltip: 'Import M3U playlist',
+            onPressed: () => _importPlaylist(context, notifier, tracks),
+            icon: const Icon(Icons.file_open_outlined),
+          ),
+          IconButton(
+            tooltip: 'Create auto playlist',
+            onPressed: () => _createAutomaticPlaylist(context, notifier),
+            icon: const Icon(Icons.auto_awesome),
+          ),
           IconButton(
             tooltip: 'Create playlist',
             onPressed: tracks.isEmpty
@@ -51,7 +65,7 @@ class PlaylistsPage extends ConsumerWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Scan a library first, then create a playlist.',
+                            'Create an auto playlist or import an M3U file.',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
@@ -63,22 +77,26 @@ class PlaylistsPage extends ConsumerWidget {
                   itemCount: items.length,
                   itemBuilder: (context, index) {
                     final playlist = items[index];
-                    final playlistTracks = playlist.trackPaths
-                        .expand(
-                          (path) =>
-                              tracks.where((track) => track.sourcePath == path),
-                        )
-                        .toList(growable: false);
+                    final playlistTracks = resolvePlaylistTracks(
+                      playlist,
+                      tracks,
+                    );
                     return _PlaylistCard(
                       key: ValueKey(playlist.id),
                       playlist: playlist,
                       tracks: playlistTracks,
-                      canEdit: tracks.isNotEmpty,
+                      canEdit: playlist.isAutomatic || tracks.isNotEmpty,
                       onPlay: playlistTracks.isEmpty
                           ? null
                           : () => playback.playQueue(playlistTracks),
-                      onEdit: () =>
-                          _editPlaylist(context, notifier, playlist, tracks),
+                      onEdit: () => playlist.isAutomatic
+                          ? _editAutomaticPlaylist(
+                              context,
+                              notifier,
+                              playlist,
+                              tracks,
+                            )
+                          : _editPlaylist(context, notifier, playlist, tracks),
                       onDelete: () => notifier.delete(playlist.id),
                     );
                   },
@@ -110,6 +128,83 @@ class PlaylistsPage extends ConsumerWidget {
     );
     if (result != null) {
       await notifier.create(result.name, result.tracks);
+    }
+  }
+
+  Future<void> _createAutomaticPlaylist(
+    BuildContext context,
+    PlaylistNotifier notifier,
+  ) async {
+    final result = await showDialog<_AutomaticPlaylistEditorResult>(
+      context: context,
+      builder: (context) => const _AutomaticPlaylistEditorDialog(
+        title: 'New auto playlist',
+        confirmLabel: 'Create',
+      ),
+    );
+    if (result != null) {
+      await notifier.createAutomatic(result.name, result.query);
+    }
+  }
+
+  Future<void> _editAutomaticPlaylist(
+    BuildContext context,
+    PlaylistNotifier notifier,
+    Playlist playlist,
+    List<LibraryTrack> tracks,
+  ) async {
+    final result = await showDialog<_AutomaticPlaylistEditorResult>(
+      context: context,
+      builder: (context) => _AutomaticPlaylistEditorDialog(
+        title: 'Edit auto playlist',
+        confirmLabel: 'Save',
+        playlist: playlist,
+        tracks: tracks,
+      ),
+    );
+    if (result != null) {
+      await notifier.updateAutomatic(playlist.id, result.name, result.query);
+    }
+  }
+
+  Future<void> _importPlaylist(
+    BuildContext context,
+    PlaylistNotifier notifier,
+    List<LibraryTrack> tracks,
+  ) async {
+    const typeGroup = XTypeGroup(
+      label: 'M3U playlists',
+      extensions: ['m3u', 'm3u8'],
+    );
+    final file = await openFile(acceptedTypeGroups: const [typeGroup]);
+    if (file == null) return;
+
+    try {
+      final imported = const M3uPlaylistParser().parseBytes(
+        await file.readAsBytes(),
+        sourcePath: file.path,
+      );
+      if (imported.trackPaths.isEmpty) {
+        throw const FormatException('The playlist contains no track paths.');
+      }
+      await notifier.importPlaylist(imported.name, imported.trackPaths);
+      if (!context.mounted) return;
+      final available = resolvePlaylistTracks(
+        Playlist(id: '', name: imported.name, trackPaths: imported.trackPaths),
+        tracks,
+      ).length;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Imported ${imported.trackPaths.length} tracks ($available available).',
+          ),
+        ),
+      );
+    } on Object catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not import playlist: $error')),
+      );
     }
   }
 
@@ -165,9 +260,12 @@ class _PlaylistCardState extends State<_PlaylistCard> {
 
   @override
   Widget build(BuildContext context) {
-    final missingCount =
-        widget.playlist.trackPaths.length - widget.tracks.length;
-    final subtitle = missingCount > 0
+    final missingCount = widget.playlist.isAutomatic
+        ? 0
+        : widget.playlist.trackPaths.length - widget.tracks.length;
+    final subtitle = widget.playlist.isAutomatic
+        ? '${widget.tracks.length} tracks · “${widget.playlist.query}”'
+        : missingCount > 0
         ? '${widget.tracks.length}/${widget.playlist.trackPaths.length} tracks · $missingCount unavailable'
         : '${widget.tracks.length} tracks';
 
@@ -615,6 +713,116 @@ class _TrackSelectionPane extends StatelessWidget {
               child: const Icon(Icons.drag_handle),
             )
           : const Icon(Icons.music_note_outlined),
+    );
+  }
+}
+
+class _AutomaticPlaylistEditorResult {
+  const _AutomaticPlaylistEditorResult({
+    required this.name,
+    required this.query,
+  });
+
+  final String name;
+  final String query;
+}
+
+class _AutomaticPlaylistEditorDialog extends StatefulWidget {
+  const _AutomaticPlaylistEditorDialog({
+    required this.title,
+    required this.confirmLabel,
+    this.playlist,
+    this.tracks = const [],
+  });
+
+  final String title;
+  final String confirmLabel;
+  final Playlist? playlist;
+  final List<LibraryTrack> tracks;
+
+  @override
+  State<_AutomaticPlaylistEditorDialog> createState() =>
+      _AutomaticPlaylistEditorDialogState();
+}
+
+class _AutomaticPlaylistEditorDialogState
+    extends State<_AutomaticPlaylistEditorDialog> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _queryController;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.playlist?.name);
+    _queryController = TextEditingController(text: widget.playlist?.query);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _queryController.dispose();
+    super.dispose();
+  }
+
+  bool get _isValid =>
+      _nameController.text.trim().isNotEmpty &&
+      _queryController.text.trim().isNotEmpty;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: SizedBox(
+        width: 440,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _nameController,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Playlist name'),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _queryController,
+              decoration: const InputDecoration(
+                labelText: 'Match text',
+                helperText: 'Matches title, artist, album, or source path.',
+              ),
+              onChanged: (_) => setState(() {}),
+              onSubmitted: (_) => _submit(),
+            ),
+            if (widget.playlist != null) ...[
+              const SizedBox(height: 20),
+              AutoPlaylistPreview(
+                tracks: widget.tracks,
+                query: _queryController.text,
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _isValid ? _submit : null,
+          child: Text(widget.confirmLabel),
+        ),
+      ],
+    );
+  }
+
+  void _submit() {
+    if (!_isValid) return;
+    Navigator.of(context).pop(
+      _AutomaticPlaylistEditorResult(
+        name: _nameController.text.trim(),
+        query: _queryController.text.trim(),
+      ),
     );
   }
 }
