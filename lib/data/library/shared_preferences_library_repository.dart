@@ -12,6 +12,7 @@ import '../../domain/library/library_scanner.dart';
 import '../../domain/library/library_track.dart' as domain;
 import '../../domain/library/smb_source.dart';
 import '../database/app_database.dart' as db;
+import 'library_source_store.dart';
 import 'smb_library_scanner.dart';
 
 class SharedPreferencesLibraryRepository implements LibraryRepository {
@@ -23,47 +24,31 @@ class SharedPreferencesLibraryRepository implements LibraryRepository {
     this.directoryAccess = const _NoopDirectoryAccessService(),
   });
 
-  static const _sourcePathKey = 'library.source_path';
-  static const _lastLocalSourcePathKey = 'library.last_local_source_path';
-
   final SharedPreferences _preferences;
   final db.AppDatabase _database;
   final LibraryScanner _scanner;
   final SmbLibraryScanner _smbScanner;
   final LocalDirectoryAccessService directoryAccess;
 
+  LibrarySourceStore get _sourceStore => LibrarySourceStore(
+    preferences: _preferences,
+    database: _database,
+    directoryAccess: directoryAccess,
+  );
+
   @override
-  Future<String?> loadSourcePath() async {
-    final path = _preferences.getString(_sourcePathKey);
-    if (path != null && !path.startsWith('smb://')) {
-      await directoryAccess.prepareAccess(path);
-    }
-    if (path != null) {
-      await _database.customUpdate(
-        'UPDATE library_tracks SET source_key = ? WHERE source_key = ?',
-        variables: [Variable.withString(path), Variable.withString('')],
-        updates: {_database.libraryTracks},
-      );
-    }
-    return path;
-  }
+  Future<String?> loadSourcePath() => _sourceStore.loadSourcePath();
 
   @override
   Future<String?> loadLastLocalSourcePath() async =>
-      _preferences.getString(_lastLocalSourcePathKey);
+      _sourceStore.loadLastLocalSourcePath();
 
   @override
-  Future<void> saveSourcePath(String path) async {
-    await _preferences.setString(_sourcePathKey, path);
-    if (!path.startsWith('smb://')) {
-      await _preferences.setString(_lastLocalSourcePathKey, path);
-      await directoryAccess.saveAccess(path);
-    }
-  }
+  Future<void> saveSourcePath(String path) => _sourceStore.saveSourcePath(path);
 
   @override
   Future<List<domain.LibraryTrack>> loadTracks() async {
-    final source = _preferences.getString(_sourcePathKey);
+    final source = _sourceStore.currentSourcePath;
     final query = _database.select(_database.libraryTracks);
     if (source != null) query.where((row) => row.sourceKey.equals(source));
     final rows = await query.get();
@@ -72,8 +57,7 @@ class SharedPreferencesLibraryRepository implements LibraryRepository {
 
   @override
   Future<LibraryPage> queryTracks(LibraryQuery query) async {
-    final source =
-        query.sourceKey ?? _preferences.getString(_sourcePathKey) ?? '';
+    final source = query.sourceKey ?? _sourceStore.currentSourcePath ?? '';
     final sortExpression = switch (query.sortField) {
       LibrarySortField.title => 'LOWER(COALESCE(t.title, t.source_path))',
       LibrarySortField.artist => "LOWER(COALESCE(t.artist, ''))",
@@ -147,8 +131,7 @@ class SharedPreferencesLibraryRepository implements LibraryRepository {
 
   @override
   Future<LibraryGroupPage> queryGroups(LibraryGroupQuery query) async {
-    final source =
-        query.sourceKey ?? _preferences.getString(_sourcePathKey) ?? '';
+    final source = query.sourceKey ?? _sourceStore.currentSourcePath ?? '';
     final field = switch (query.kind) {
       LibraryGroupKind.album => 'album',
       LibraryGroupKind.artist => 'artist',
@@ -235,7 +218,7 @@ class SharedPreferencesLibraryRepository implements LibraryRepository {
   ) async {
     final requested = paths.toList(growable: false);
     if (requested.isEmpty) return const [];
-    final source = _preferences.getString(_sourcePathKey) ?? '';
+    final source = _sourceStore.currentSourcePath ?? '';
     final comparisonPaths = requested
         .map(normalizeLibraryComparisonPath)
         .toList(growable: false);
