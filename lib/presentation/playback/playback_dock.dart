@@ -635,7 +635,15 @@ class _ArtworkTile extends StatelessWidget {
                 color: Theme.of(context).colorScheme.onPrimaryContainer,
               ),
             )
-          : Image.memory(image, width: size, height: size, fit: BoxFit.cover),
+          : RepaintBoundary(
+              child: Image.memory(
+                image,
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+                gaplessPlayback: true,
+              ),
+            ),
     );
   }
 }
