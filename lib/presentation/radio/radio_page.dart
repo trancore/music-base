@@ -46,6 +46,7 @@ class RadioPage extends ConsumerWidget {
                         width: 220,
                         child: DropdownButtonFormField<RadioStationSort>(
                           initialValue: sort,
+                          isExpanded: true,
                           decoration: const InputDecoration(
                             labelText: 'Sort stations',
                             prefixIcon: Icon(Icons.sort),
@@ -84,6 +85,7 @@ class RadioPage extends ConsumerWidget {
                       child: _StationList(
                         stations: _sortedStations(items, sort),
                         manualOrder: sort == RadioStationSort.manual,
+                        groupByGenre: sort == RadioStationSort.genre,
                         playback: playback,
                         onReorder: (oldIndex, newIndex) async {
                           if (sort != RadioStationSort.manual) return;
@@ -151,8 +153,15 @@ class RadioPage extends ConsumerWidget {
     if (station == null || !context.mounted) return;
     final result = station.toInternetRadioStation();
     try {
-      await ref.read(radioStreamTesterProvider).test(result);
       await ref.read(radioStationProvider.notifier).save(result);
+    } on Object {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not save this station.')),
+      );
+      return;
+    }
+    try {
       await ref.read(playbackServiceProvider).playRadioStation(result);
       if (!context.mounted) return;
       ScaffoldMessenger.of(
@@ -161,9 +170,9 @@ class RadioPage extends ConsumerWidget {
     } on Object {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'Stream test failed. Check the stream URL and try again.',
+            'Added ${result.name}, but playback could not start. Try again later.',
           ),
         ),
       );
@@ -215,13 +224,43 @@ List<InternetRadioStation> _sortedStations(
         (a, b) => b.name.toLowerCase().compareTo(a.name.toLowerCase()),
       );
     case RadioStationSort.genre:
-      sorted.sort(
-        (a, b) => (a.genre ?? '').toLowerCase().compareTo(
-          (b.genre ?? '').toLowerCase(),
-        ),
-      );
+      sorted.sort((a, b) {
+        final genreComparison = _primaryGenre(
+          a,
+        ).toLowerCase().compareTo(_primaryGenre(b).toLowerCase());
+        if (genreComparison != 0) return genreComparison;
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
   }
   return sorted;
+}
+
+String _primaryGenre(InternetRadioStation station) {
+  final tags = _radioTags(station.genre);
+  return tags.isEmpty ? 'Other' : tags.first;
+}
+
+List<({String genre, List<InternetRadioStation> stations})> _genreGroups(
+  List<InternetRadioStation> stations,
+) {
+  final grouped =
+      <String, ({String genre, List<InternetRadioStation> stations})>{};
+  for (final station in stations) {
+    final genre = _primaryGenre(station);
+    final key = genre.toLowerCase();
+    final group = grouped.putIfAbsent(
+      key,
+      () => (genre: genre, stations: <InternetRadioStation>[]),
+    );
+    group.stations.add(station);
+  }
+  final groups = grouped.values.toList(growable: false);
+  groups.sort((a, b) {
+    if (a.genre == 'Other') return 1;
+    if (b.genre == 'Other') return -1;
+    return a.genre.toLowerCase().compareTo(b.genre.toLowerCase());
+  });
+  return groups;
 }
 
 List<String> _radioTags(String? value) {
@@ -266,6 +305,7 @@ class _StationList extends StatelessWidget {
   const _StationList({
     required this.stations,
     required this.manualOrder,
+    required this.groupByGenre,
     required this.playback,
     required this.onReorder,
     required this.onEdit,
@@ -274,106 +314,144 @@ class _StationList extends StatelessWidget {
 
   final List<InternetRadioStation> stations;
   final bool manualOrder;
+  final bool groupByGenre;
   final PlaybackService playback;
   final void Function(int oldIndex, int newIndex) onReorder;
   final ValueChanged<InternetRadioStation> onEdit;
   final ValueChanged<InternetRadioStation> onDelete;
 
   @override
-  Widget build(BuildContext context) => ReorderableListView.builder(
-    buildDefaultDragHandles: false,
-    padding: const EdgeInsets.only(bottom: 24),
-    itemCount: stations.length,
-    onReorderItem: manualOrder ? onReorder : (_, _) {},
-    itemBuilder: (context, index) {
-      final station = stations[index];
-      final isCurrent = playback.snapshot.currentRadioStation?.id == station.id;
-      final isPlaying = isCurrent && playback.snapshot.isPlaying;
-      return Card(
-        key: ValueKey(station.id),
-        margin: const EdgeInsets.only(bottom: 8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        child: ListTile(
-          leading: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (manualOrder)
-                ReorderableDragStartListener(
-                  index: index,
-                  child: const Padding(
-                    padding: EdgeInsets.only(right: 8),
-                    child: Icon(Icons.drag_handle),
+  Widget build(BuildContext context) {
+    if (groupByGenre) {
+      return ListView(
+        padding: const EdgeInsets.only(bottom: 24),
+        children: [
+          for (final group in _genreGroups(stations)) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 12, 8, 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      group.genre,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                   ),
-                ),
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: isCurrent
-                    ? Theme.of(context).colorScheme.primaryContainer
-                    : Theme.of(context).colorScheme.surfaceContainerHighest,
-                foregroundColor: isCurrent
-                    ? Theme.of(context).colorScheme.onPrimaryContainer
-                    : Theme.of(context).colorScheme.onSurfaceVariant,
-                child: Icon(isCurrent ? Icons.graphic_eq : Icons.radio),
+                  Text(
+                    '${group.stations.length}',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-          title: Text(
-            station.name,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          subtitle: Text(
-            station.streamUrl,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          isThreeLine: true,
-          trailing: Wrap(
-            spacing: 0,
-            children: [
-              IconButton(
-                tooltip: isPlaying ? 'Playing' : 'Play',
-                onPressed: isPlaying
-                    ? null
-                    : () => playback.playRadioStation(station),
-                icon: const Icon(Icons.play_arrow),
-              ),
-              IconButton(
-                tooltip: 'Edit station',
-                onPressed: () => onEdit(station),
-                icon: const Icon(Icons.edit_outlined),
-              ),
-              IconButton(
-                tooltip: 'Delete station',
-                onPressed: () => onDelete(station),
-                icon: const Icon(Icons.delete_outline),
-              ),
-            ],
-          ),
-          onTap: () => showModalBottomSheet<void>(
-            context: context,
-            showDragHandle: true,
-            builder: (_) => _RadioStationDetailsSheet(
-              station: station,
-              isPlaying: isPlaying,
-              onPlay: () {
-                Navigator.of(context).pop();
-                if (!isPlaying) playback.playRadioStation(station);
-              },
-              onEdit: () {
-                Navigator.of(context).pop();
-                onEdit(station);
-              },
-              onDelete: () {
-                Navigator.of(context).pop();
-                onDelete(station);
-              },
             ),
+            for (final station in group.stations)
+              _stationCard(context, station),
+          ],
+        ],
+      );
+    }
+
+    return ReorderableListView.builder(
+      buildDefaultDragHandles: false,
+      padding: const EdgeInsets.only(bottom: 24),
+      itemCount: stations.length,
+      onReorderItem: manualOrder ? onReorder : (_, _) {},
+      itemBuilder: (context, index) =>
+          _stationCard(context, stations[index], reorderIndex: index),
+    );
+  }
+
+  Widget _stationCard(
+    BuildContext context,
+    InternetRadioStation station, {
+    int? reorderIndex,
+  }) {
+    final isCurrent = playback.snapshot.currentRadioStation?.id == station.id;
+    final isPlaying = isCurrent && playback.snapshot.isPlaying;
+    return Card(
+      key: ValueKey(station.id),
+      margin: const EdgeInsets.only(bottom: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: ListTile(
+        leading: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (manualOrder && reorderIndex != null)
+              ReorderableDragStartListener(
+                index: reorderIndex,
+                child: const Padding(
+                  padding: EdgeInsets.only(right: 8),
+                  child: Icon(Icons.drag_handle),
+                ),
+              ),
+            CircleAvatar(
+              radius: 24,
+              backgroundColor: isCurrent
+                  ? Theme.of(context).colorScheme.primaryContainer
+                  : Theme.of(context).colorScheme.surfaceContainerHighest,
+              foregroundColor: isCurrent
+                  ? Theme.of(context).colorScheme.onPrimaryContainer
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
+              child: Icon(isCurrent ? Icons.graphic_eq : Icons.radio),
+            ),
+          ],
+        ),
+        title: Text(station.name, maxLines: 2, overflow: TextOverflow.ellipsis),
+        subtitle: Text(
+          station.streamUrl,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        isThreeLine: true,
+        trailing: Wrap(
+          spacing: 0,
+          children: [
+            IconButton(
+              tooltip: isPlaying ? 'Playing' : 'Play',
+              onPressed: isPlaying
+                  ? null
+                  : () => playback.playRadioStation(station),
+              icon: const Icon(Icons.play_arrow),
+            ),
+            IconButton(
+              tooltip: 'Edit station',
+              onPressed: () => onEdit(station),
+              icon: const Icon(Icons.edit_outlined),
+            ),
+            IconButton(
+              tooltip: 'Delete station',
+              onPressed: () => onDelete(station),
+              icon: const Icon(Icons.delete_outline),
+            ),
+          ],
+        ),
+        onTap: () => showModalBottomSheet<void>(
+          context: context,
+          showDragHandle: true,
+          builder: (_) => _RadioStationDetailsSheet(
+            station: station,
+            isPlaying: isPlaying,
+            onPlay: () {
+              Navigator.of(context).pop();
+              if (!isPlaying) playback.playRadioStation(station);
+            },
+            onEdit: () {
+              Navigator.of(context).pop();
+              onEdit(station);
+            },
+            onDelete: () {
+              Navigator.of(context).pop();
+              onDelete(station);
+            },
           ),
         ),
-      );
-    },
-  );
+      ),
+    );
+  }
 }
 
 class _RadioStationDetailsSheet extends StatelessWidget {
