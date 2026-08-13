@@ -17,7 +17,9 @@ Android実機で起動する場合は、端末の開発者向けオプション�
 
 ## デスクトップ配布物
 
-WindowsとmacOSの配布物は、`v`で始まるGitタグを`main`へpushしたときにGitHub Actionsで生成され、GitHub Releaseへ添付されます。
+PRを`main`へマージすると、`pubspec.yaml`のバージョンを使ったGitHub Releaseがドラフトとして作成されます。同じバージョンのドラフトが存在する場合は、対象コミットと自動生成リリースノートを最新の`main`へ更新します。公開済みの同名Releaseは変更しないため、次のリリースではマージ前にアプリのバージョンを更新してください。
+
+WindowsとmacOSの配布物は、対応する`v`で始まるGitタグをpushするとGitHub Actionsで生成され、既存のドラフトへ添付して公開されます。ドラフトがない場合は従来どおり新しいReleaseを作成します。
 
 - Windows: `MusicBase-Setup.exe`。インストール時にスタートメニューとデスクトップのショートカット作成を個別に選択できます。
 - macOS: `MusicBase.dmg`。DMG内のアプリをApplicationsへコピーして使用します。現在はテスト配布向けのため、署名・Notarizationは未対応です。
