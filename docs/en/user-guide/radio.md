@@ -2,7 +2,7 @@
 
 Open the “Radio” screen to add and play internet radio stations. Enter a station name and its direct audio stream URL, then select “Test and save”.
 
-Use the search icon to search Radio Browser. Results are limited to stations Radio Browser currently considers reachable, and the app uses its resolved direct stream URL rather than a playlist or redirect URL. Select a result to save it and start playback immediately. If a temporary network failure prevents playback from starting, the station remains saved so you can retry later.
+Use the search icon to search Radio Browser. Results are limited to stations Radio Browser currently considers reachable, and the app uses its resolved direct stream URL rather than a playlist or redirect URL. Select a result to save it and start playback immediately. If a temporary network failure or an offline broadcaster prevents playback from starting, the app shows an error and keeps the station saved so you can retry later. Connections to an unresponsive stream stop after 12 seconds.
 
 An audio stream URL delivers audio directly. It is different from the station’s web page URL. For example, this HappyHardcore.com page is not a stream URL:
 

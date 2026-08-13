@@ -78,12 +78,12 @@ void main() {
     );
   });
 
-  testWidgets('saves a Radio Browser station without a blocking stream test', (
+  testWidgets('keeps a Radio Browser station when playback fails', (
     tester,
   ) async {
     final repository = _RecordingRadioStationRepository();
     final streamTester = _FailingRadioStreamTester();
-    final playback = _NoopRadioPlaybackService();
+    final playback = _FailingRadioPlaybackService();
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -109,7 +109,42 @@ void main() {
 
     expect(repository.stations.single.name, 'J-Idols Project Radio');
     expect(streamTester.calls, 0);
-    expect(find.textContaining('Added J-Idols Project Radio'), findsOneWidget);
+    expect(
+      find.textContaining(
+        'Added J-Idols Project Radio, but playback could not start',
+      ),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('reports playback failure from a saved station', (tester) async {
+    const station = InternetRadioStation(
+      id: 'offline',
+      name: 'Offline Radio',
+      streamUrl: 'https://example.com/offline',
+    );
+    final playback = _FailingRadioPlaybackService();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          radioStationRepositoryProvider.overrideWithValue(
+            const _FakeRadioStationRepository([station]),
+          ),
+          playbackServiceProvider.overrideWith((ref) => playback),
+        ],
+        child: const MaterialApp(home: RadioPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Play'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Could not play Offline Radio. Try again later.'),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 }
@@ -144,11 +179,13 @@ class _FailingRadioStreamTester implements RadioStreamTester {
   }
 }
 
-class _NoopRadioPlaybackService extends JustAudioPlaybackService {
-  _NoopRadioPlaybackService() : super(AudioPlayer());
+class _FailingRadioPlaybackService extends JustAudioPlaybackService {
+  _FailingRadioPlaybackService() : super(AudioPlayer());
 
   @override
-  Future<void> playRadioStation(InternetRadioStation station) async {}
+  Future<void> playRadioStation(InternetRadioStation station) async {
+    throw StateError('unreachable');
+  }
 }
 
 class _RecordingRadioStationRepository implements RadioStationRepository {

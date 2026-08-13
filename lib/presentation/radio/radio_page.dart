@@ -210,6 +210,28 @@ class RadioPage extends ConsumerWidget {
   }
 }
 
+Future<void> _playRadioStation(
+  BuildContext context,
+  PlaybackService playback,
+  InternetRadioStation station,
+) async {
+  try {
+    await playback.playRadioStation(station);
+  } on Object {
+    if (!context.mounted) return;
+    final detail = playback.snapshot.errorMessage;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          detail == null || detail.isEmpty
+              ? 'Could not play ${station.name}. Try again later.'
+              : detail,
+        ),
+      ),
+    );
+  }
+}
+
 List<InternetRadioStation> _sortedStations(
   List<InternetRadioStation> stations,
   RadioStationSort sort,

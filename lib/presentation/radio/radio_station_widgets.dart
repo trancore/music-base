@@ -140,7 +140,7 @@ class _StationList extends StatelessWidget {
               tooltip: isPlaying ? 'Playing' : 'Play',
               onPressed: isPlaying
                   ? null
-                  : () => playback.playRadioStation(station),
+                  : () => _playRadioStation(context, playback, station),
               icon: const Icon(Icons.play_arrow),
             ),
             IconButton(
@@ -163,7 +163,9 @@ class _StationList extends StatelessWidget {
             isPlaying: isPlaying,
             onPlay: () {
               Navigator.of(context).pop();
-              if (!isPlaying) playback.playRadioStation(station);
+              if (!isPlaying) {
+                _playRadioStation(context, playback, station);
+              }
             },
             onEdit: () {
               Navigator.of(context).pop();
