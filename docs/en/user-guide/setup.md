@@ -1,5 +1,7 @@
 # Setup
 
+Select **User guide** under **Help** on the Settings screen to open this documentation in the default browser. An internet connection is required.
+
 ## Music library location
 
 Configure the music library with a local directory or an SMB share provided by the user or administrator. The exact path depends on the environment.

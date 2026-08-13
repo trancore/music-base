@@ -50,6 +50,7 @@ class JustAudioPlaybackService extends ChangeNotifier
   late final List<StreamSubscription<dynamic>> _subscriptions;
   SmbStreamAudioSource? _activeRemoteSource;
   List<LibraryTrack> _queue = const [];
+  PlaybackQueueSource? _lazyQueue;
   InternetRadioStation? _currentRadioStation;
   Timer? _radioClockTimer;
   Duration _radioElapsed = Duration.zero;
@@ -70,6 +71,8 @@ class JustAudioPlaybackService extends ChangeNotifier
     await _activeRemoteSource?.close();
     _activeRemoteSource = null;
     _queue = const [];
+    await _lazyQueue?.dispose();
+    _lazyQueue = null;
     _currentIndex = 0;
     _currentRadioStation = station;
     _stopRadioClock();
@@ -83,13 +86,35 @@ class JustAudioPlaybackService extends ChangeNotifier
     int initialIndex = 0,
   }) async {
     if (tracks.isEmpty) return;
+    await _lazyQueue?.dispose();
+    _lazyQueue = null;
     _queue = List.unmodifiable(tracks);
     _currentIndex = initialIndex.clamp(0, _queue.length - 1).toInt();
     await _loadCurrentTrack();
   }
 
+  @override
+  Future<void> playLazyQueue(
+    PlaybackQueueSource queue, {
+    int initialIndex = 0,
+  }) async {
+    if (queue.length == 0) return;
+    await _lazyQueue?.dispose();
+    _queue = const [];
+    _lazyQueue = queue;
+    _currentIndex = initialIndex.clamp(0, queue.length - 1).toInt();
+    await _loadCurrentTrack();
+  }
+
   Future<void> _loadCurrentTrack() async {
-    final track = _queue[_currentIndex];
+    final lazyQueue = _lazyQueue;
+    final track = lazyQueue == null
+        ? _queue[_currentIndex]
+        : await lazyQueue.trackAt(_currentIndex);
+    if (track == null) {
+      await _skipUnavailableTrack();
+      return;
+    }
     _currentRadioStation = null;
     final mediaItem = MediaItem(
       id: track.sourcePath,
@@ -106,8 +131,9 @@ class JustAudioPlaybackService extends ChangeNotifier
         isLoading: true,
         volume: _snapshot.volume,
         isMuted: _snapshot.isMuted,
-        queue: _queue,
-        currentIndex: _currentIndex,
+        queue: lazyQueue == null ? _queue : [track],
+        queueTotal: lazyQueue?.length,
+        currentIndex: lazyQueue == null ? _currentIndex : 0,
         shuffleEnabled: _snapshot.shuffleEnabled,
         repeatEnabled: _snapshot.repeatEnabled,
         errorMessage: null,
@@ -217,17 +243,18 @@ class JustAudioPlaybackService extends ChangeNotifier
   @override
   Future<void> skipNext() async {
     if (_currentRadioStation != null) return;
-    if (_queue.isEmpty) return;
+    if (_queue.isEmpty && _lazyQueue == null) return;
     if (_snapshot.repeatEnabled) {
       await _player.seek(Duration.zero);
       await _player.play();
       return;
     }
-    if (_snapshot.shuffleEnabled && _queue.length > 1) {
-      final candidates = List<int>.generate(_queue.length, (index) => index)
+    final queueLength = _lazyQueue?.length ?? _queue.length;
+    if (_snapshot.shuffleEnabled && queueLength > 1) {
+      final candidates = List<int>.generate(queueLength, (index) => index)
         ..remove(_currentIndex);
       _currentIndex = (candidates..shuffle()).first;
-    } else if (_currentIndex + 1 < _queue.length) {
+    } else if (_currentIndex + 1 < queueLength) {
       _currentIndex++;
     } else {
       await stop();
@@ -239,7 +266,7 @@ class JustAudioPlaybackService extends ChangeNotifier
   @override
   Future<void> skipPrevious() async {
     if (_currentRadioStation != null) return;
-    if (_queue.isEmpty) return;
+    if (_queue.isEmpty && _lazyQueue == null) return;
     if (_snapshot.position > const Duration(seconds: 3)) {
       await seek(Duration.zero);
       return;
@@ -250,6 +277,16 @@ class JustAudioPlaybackService extends ChangeNotifier
     } else {
       await seek(Duration.zero);
     }
+  }
+
+  Future<void> _skipUnavailableTrack() async {
+    final length = _lazyQueue?.length ?? _queue.length;
+    if (_currentIndex + 1 >= length) {
+      await stop();
+      return;
+    }
+    _currentIndex++;
+    await _loadCurrentTrack();
   }
 
   @override
@@ -294,8 +331,9 @@ class JustAudioPlaybackService extends ChangeNotifier
       isLoading: isLoading ?? _snapshot.isLoading,
       volume: volume ?? _snapshot.volume,
       isMuted: isMuted ?? _snapshot.isMuted,
-      queue: _queue,
-      currentIndex: _currentIndex,
+      queue: _snapshot.queue,
+      queueTotal: _snapshot.queueTotal,
+      currentIndex: _snapshot.currentIndex,
       audioSessionId: audioSessionId ?? _snapshot.audioSessionId,
       shuffleEnabled: shuffleEnabled ?? _snapshot.shuffleEnabled,
       repeatEnabled: repeatEnabled ?? _snapshot.repeatEnabled,
@@ -327,8 +365,9 @@ class JustAudioPlaybackService extends ChangeNotifier
       isLoading: false,
       volume: _snapshot.volume,
       isMuted: _snapshot.isMuted,
-      queue: _queue,
-      currentIndex: _currentIndex,
+      queue: _snapshot.queue,
+      queueTotal: _snapshot.queueTotal,
+      currentIndex: _snapshot.currentIndex,
       audioSessionId: _snapshot.audioSessionId,
       shuffleEnabled: _snapshot.shuffleEnabled,
       repeatEnabled: _snapshot.repeatEnabled,

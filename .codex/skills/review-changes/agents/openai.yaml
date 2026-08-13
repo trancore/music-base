@@ -1,0 +1,4 @@
+interface:
+  display_name: "変更をレビュー"
+  short_description: "リポジトリ設計に沿ってコミット前の変更をコードレビューします"
+  default_prompt: "Use $review-changes to inspect this repository and review my changes before commit."

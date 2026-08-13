@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:path/path.dart' as p;
 
@@ -18,15 +19,23 @@ class LocalDirectoryLibraryScanner implements LibraryScanner {
   static const supportedExtensions = {'.flac', '.mp3'};
 
   @override
-  Future<List<LibraryTrack>> scan(String rootPath) async {
+  Future<List<LibraryTrack>> scan(
+    String rootPath, {
+    Map<String, LibraryTrack> cachedTracks = const {},
+  }) => Isolate.run(() => _scanOnWorker(rootPath, cachedTracks));
+
+  List<LibraryTrack> _scanOnWorker(
+    String rootPath,
+    Map<String, LibraryTrack> cachedTracks,
+  ) {
     final directory = Directory(rootPath);
-    if (!await directory.exists()) {
+    if (!directory.existsSync()) {
       throw LibraryAccessException('The selected directory is not available.');
     }
 
     try {
       final tracks = <LibraryTrack>[];
-      await for (final entity in directory.list(
+      for (final entity in directory.listSync(
         recursive: true,
         followLinks: false,
       )) {
@@ -41,6 +50,29 @@ class LocalDirectoryLibraryScanner implements LibraryScanner {
           entity.path,
           libraryRoot: rootPath,
         );
+        final stat = entity.statSync();
+        final cached = cachedTracks[entity.path];
+        if (cached != null &&
+            cached.fileSize == stat.size &&
+            cached.modifiedAt == stat.modified &&
+            cached.metadataVersion >= 1) {
+          tracks.add(
+            LibraryTrack(
+              cacheId: cached.cacheId,
+              sourcePath: cached.sourcePath,
+              title: cached.title,
+              artist: cached.artist,
+              album: cached.album,
+              lastSeenAt: DateTime.now(),
+              fileSize: cached.fileSize,
+              modifiedAt: cached.modifiedAt,
+              discNumber: cached.discNumber,
+              trackNumber: cached.trackNumber,
+              metadataVersion: cached.metadataVersion,
+            ),
+          );
+          continue;
+        }
         final metadata = _metadataReader.read(entity, inferredMetadata);
         tracks.add(
           LibraryTrack(
@@ -50,6 +82,11 @@ class LocalDirectoryLibraryScanner implements LibraryScanner {
             album: metadata.album,
             artwork: metadata.artwork,
             lastSeenAt: DateTime.now(),
+            fileSize: stat.size,
+            modifiedAt: stat.modified,
+            discNumber: metadata.discNumber,
+            trackNumber: metadata.trackNumber,
+            metadataVersion: metadata.parsedSuccessfully ? 1 : 0,
           ),
         );
       }

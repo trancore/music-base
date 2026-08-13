@@ -21,6 +21,9 @@ class PackageAudioMetadataReader {
         artist: _value(metadata.artist) ?? fallback.artist,
         album: _value(metadata.album) ?? fallback.album,
         artwork: artwork ?? fallback.artwork,
+        discNumber: metadata.discNumber ?? fallback.discNumber,
+        trackNumber: metadata.trackNumber ?? fallback.trackNumber,
+        parsedSuccessfully: true,
       );
     } on Object {
       return fallback;

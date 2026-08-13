@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,6 +7,7 @@ import 'package:music_base/app/library_providers.dart';
 import 'package:music_base/app/smb_providers.dart';
 import 'package:music_base/data/library/smb_settings_repository.dart';
 import 'package:music_base/domain/library/library_repository.dart';
+import 'package:music_base/domain/library/library_query.dart';
 import 'package:music_base/domain/library/library_track.dart';
 import 'package:music_base/domain/library/smb_source.dart';
 
@@ -22,10 +25,41 @@ void main() {
 
     await container.read(libraryProvider.future);
     await container.read(libraryProvider.notifier).scanDirectory(r'D:\Music');
-    expect(container.read(libraryProvider).hasError, isTrue);
+    expect(container.read(libraryProvider).hasError, isFalse);
+    expect(container.read(libraryProvider).value, repository.tracks);
+    expect(
+      container.read(libraryProvider.notifier).refreshWarning,
+      contains('Library scan failed'),
+    );
     await container.read(libraryProvider.notifier).rescan();
 
     expect(repository.scannedPaths, [r'D:\Music', r'D:\Music']);
+    expect(container.read(libraryProvider).value, repository.tracks);
+  });
+
+  test('keeps cached tracks visible while a rescan runs', () async {
+    final gate = Completer<void>();
+    final repository = _FakeLibraryRepository(
+      sourcePath: '/music',
+      scanGate: gate,
+      tracks: const [LibraryTrack(sourcePath: '/music/cached.flac')],
+    );
+    final container = ProviderContainer(
+      overrides: [libraryRepositoryProvider.overrideWithValue(repository)],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(libraryProvider.future);
+    final scan = container.read(libraryProvider.notifier).rescan();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(container.read(libraryProvider.notifier).isRefreshing, isTrue);
+    expect(container.read(libraryProvider).isLoading, isFalse);
+    expect(container.read(libraryProvider).value, repository.tracks);
+
+    gate.complete();
+    await scan;
+    expect(container.read(libraryProvider.notifier).isRefreshing, isFalse);
     expect(container.read(libraryProvider).value, repository.tracks);
   });
 
@@ -50,6 +84,88 @@ void main() {
 
     expect(repository.smbScanCount, 1);
     expect(container.read(libraryProvider).value, repository.tracks);
+  });
+
+  test('passes the selected album to the first page query', () async {
+    final repository = _FakeLibraryRepository(
+      sourcePath: '/music',
+      tracks: const [LibraryTrack(sourcePath: '/music/recording.flac')],
+    );
+    final container = ProviderContainer(
+      overrides: [libraryRepositoryProvider.overrideWithValue(repository)],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(libraryProvider.future);
+    await container
+        .read(libraryProvider.notifier)
+        .setGroup(
+          const LibraryGroup(
+            kind: LibraryGroupKind.album,
+            value: 'selected collection',
+            trackCount: 1,
+          ),
+        );
+
+    expect(repository.queries.last.album, 'selected collection');
+    expect(repository.queries.last.artist, isNull);
+  });
+
+  test('passes the selected artist to the first page query', () async {
+    final repository = _FakeLibraryRepository(
+      sourcePath: '/music',
+      tracks: const [LibraryTrack(sourcePath: '/music/recording.flac')],
+    );
+    final container = ProviderContainer(
+      overrides: [libraryRepositoryProvider.overrideWithValue(repository)],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(libraryProvider.future);
+    await container
+        .read(libraryProvider.notifier)
+        .setGroup(
+          const LibraryGroup(
+            kind: LibraryGroupKind.artist,
+            value: 'selected performer',
+            trackCount: 1,
+          ),
+        );
+
+    expect(repository.queries.last.artist, 'selected performer');
+    expect(repository.queries.last.album, isNull);
+  });
+
+  test('ignores a stale search response that finishes last', () async {
+    final firstGate = Completer<void>();
+    final repository = _FakeLibraryRepository(
+      sourcePath: '/music',
+      queryGates: {'first': firstGate},
+      queryTracksBySearch: {
+        'first': const [
+          LibraryTrack(sourcePath: '/music/first.flac', title: 'first'),
+        ],
+        'second': const [
+          LibraryTrack(sourcePath: '/music/second.flac', title: 'second'),
+        ],
+      },
+    );
+    final container = ProviderContainer(
+      overrides: [libraryRepositoryProvider.overrideWithValue(repository)],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(libraryProvider.future);
+    final first = container
+        .read(libraryProvider.notifier)
+        .setQuery(search: 'first');
+    await Future<void>.delayed(Duration.zero);
+    await container.read(libraryProvider.notifier).setQuery(search: 'second');
+    firstGate.complete();
+    await first;
+
+    expect(container.read(libraryProvider).value?.single.title, 'second');
+    expect(container.read(libraryProvider.notifier).query.search, 'second');
   });
 }
 
@@ -80,12 +196,19 @@ class _FakeLibraryRepository implements LibraryRepository {
     required this.sourcePath,
     this.failuresRemaining = 0,
     this.tracks = const [],
+    this.scanGate,
+    this.queryGates = const {},
+    this.queryTracksBySearch = const {},
   });
 
   final String sourcePath;
   int failuresRemaining;
   final List<LibraryTrack> tracks;
+  final Completer<void>? scanGate;
+  final Map<String, Completer<void>> queryGates;
+  final Map<String, List<LibraryTrack>> queryTracksBySearch;
   final scannedPaths = <String>[];
+  final queries = <LibraryQuery>[];
   var smbScanCount = 0;
 
   @override
@@ -100,6 +223,7 @@ class _FakeLibraryRepository implements LibraryRepository {
   @override
   Future<List<LibraryTrack>> scanAndCache(String path) async {
     scannedPaths.add(path);
+    await scanGate?.future;
     if (failuresRemaining > 0) {
       failuresRemaining--;
       throw StateError('temporary scan failure');
@@ -115,4 +239,47 @@ class _FakeLibraryRepository implements LibraryRepository {
     smbScanCount++;
     return tracks;
   }
+
+  @override
+  Future<String?> loadLastLocalSourcePath() async => null;
+
+  @override
+  Future<LibraryPage> queryTracks(LibraryQuery query) async {
+    queries.add(query);
+    await queryGates[query.search]?.future;
+    final result = queryTracksBySearch[query.search] ?? tracks;
+    return LibraryPage(items: result, totalCount: result.length);
+  }
+
+  @override
+  Future<LibraryGroupPage> queryGroups(LibraryGroupQuery query) async =>
+      const LibraryGroupPage(items: [], totalCount: 0);
+
+  @override
+  Future<List<LibraryTrack>> resolveTrackPaths(Iterable<String> paths) async =>
+      tracks.where((track) => paths.contains(track.sourcePath)).toList();
+
+  @override
+  Future<LibraryPlaybackQueueDescriptor> createPlaybackQueue(
+    LibraryQuery query,
+  ) async => const LibraryPlaybackQueueDescriptor(id: 'test', length: 0);
+
+  @override
+  Future<LibraryTrack?> loadPlaybackQueueTrack(
+    String queueId,
+    int index,
+  ) async => null;
+
+  @override
+  Future<void> deletePlaybackQueue(String queueId) async {}
+
+  @override
+  Future<LibraryTrack?> loadTrackById(int id) async => null;
+
+  @override
+  Future<List<int>?> loadArtwork(int trackId) async => null;
+
+  @override
+  Future<List<LibraryTrack>> scanFallbackLocal(String path) =>
+      scanAndCache(path);
 }

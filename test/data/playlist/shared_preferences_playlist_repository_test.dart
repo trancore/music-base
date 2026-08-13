@@ -14,11 +14,11 @@ void main() {
 
     const first = Playlist(
       id: 'one',
-      name: 'Favorites',
+      name: 'Sample playlist',
       trackPaths: ['D:/Music/one.flac'],
     );
     await repository.save(first);
-    expect((await repository.loadAll()).single.name, 'Favorites');
+    expect((await repository.loadAll()).single.name, 'Sample playlist');
 
     const replacement = Playlist(
       id: 'one',
@@ -32,5 +32,32 @@ void main() {
 
     await repository.delete('one');
     expect(await repository.loadAll(), isEmpty);
+  });
+
+  test('persists automatic playlists and loads legacy manual data', () async {
+    SharedPreferences.setMockInitialValues({
+      'playlists':
+          '[{"id":"legacy","name":"Legacy","trackPaths":["D:/one.flac"]}]',
+    });
+    final preferences = await SharedPreferences.getInstance();
+    final repository = SharedPreferencesPlaylistRepository(
+      preferences: preferences,
+    );
+
+    final legacy = (await repository.loadAll()).single;
+    expect(legacy.type, PlaylistType.manual);
+
+    await repository.save(
+      const Playlist(
+        id: 'auto',
+        name: 'Matching tracks',
+        type: PlaylistType.automatic,
+        query: 'orchestra',
+      ),
+    );
+    final automatic = (await repository.loadAll()).last;
+    expect(automatic.type, PlaylistType.automatic);
+    expect(automatic.query, 'orchestra');
+    expect(automatic.trackPaths, isEmpty);
   });
 }

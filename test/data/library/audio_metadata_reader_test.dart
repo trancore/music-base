@@ -27,6 +27,7 @@ void main() {
       expect(metadata.title, 'Song');
       expect(metadata.artist, 'Artist');
       expect(metadata.album, 'Album');
+      expect(metadata.parsedSuccessfully, isFalse);
     },
   );
 }

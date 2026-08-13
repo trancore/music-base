@@ -161,7 +161,14 @@ private final class MacosSpectrumCapture: NSObject, FlutterStreamHandler, SCStre
       do {
         let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false)
         guard let display = content.displays.first else { return }
-        let filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
+        guard let application = content.applications.first(where: {
+          $0.processID == ProcessInfo.processInfo.processIdentifier
+        }) else { return }
+        let filter = SCContentFilter(
+          display: display,
+          including: [application],
+          exceptingWindows: []
+        )
         let configuration = SCStreamConfiguration()
         configuration.capturesAudio = true
         configuration.excludesCurrentProcessAudio = false

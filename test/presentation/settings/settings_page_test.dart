@@ -8,11 +8,32 @@ import 'package:music_base/app/providers.dart';
 import 'package:music_base/app/smb_providers.dart';
 import 'package:music_base/data/library/smb_settings_repository.dart';
 import 'package:music_base/domain/library/library_repository.dart';
+import 'package:music_base/domain/library/library_query.dart';
 import 'package:music_base/domain/library/library_track.dart';
 import 'package:music_base/domain/library/smb_source.dart';
 import 'package:music_base/presentation/settings/settings_page.dart';
 
 void main() {
+  testWidgets('opens the online user guide', (tester) async {
+    Uri? openedUri;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          externalUrlLauncherProvider.overrideWithValue((uri) async {
+            openedUri = uri;
+            return true;
+          }),
+        ],
+        child: const MaterialApp(home: Scaffold(body: DocumentationSection())),
+      ),
+    );
+
+    await tester.tap(find.text('User guide (GitHub Pages)'));
+    await tester.pump();
+
+    expect(openedUri, Uri.parse(userGuideUrl));
+  });
+
   testWidgets('shows the saved local library source', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -103,4 +124,43 @@ class _FakeLibraryRepository implements LibraryRepository {
     SmbSource source,
     String password,
   ) async => const [];
+
+  @override
+  Future<String?> loadLastLocalSourcePath() async => null;
+
+  @override
+  Future<LibraryPage> queryTracks(LibraryQuery query) async =>
+      const LibraryPage(items: [], totalCount: 0);
+
+  @override
+  Future<LibraryGroupPage> queryGroups(LibraryGroupQuery query) async =>
+      const LibraryGroupPage(items: [], totalCount: 0);
+
+  @override
+  Future<List<LibraryTrack>> resolveTrackPaths(Iterable<String> paths) async =>
+      const [];
+
+  @override
+  Future<LibraryPlaybackQueueDescriptor> createPlaybackQueue(
+    LibraryQuery query,
+  ) async => const LibraryPlaybackQueueDescriptor(id: 'test', length: 0);
+
+  @override
+  Future<LibraryTrack?> loadPlaybackQueueTrack(
+    String queueId,
+    int index,
+  ) async => null;
+
+  @override
+  Future<void> deletePlaybackQueue(String queueId) async {}
+
+  @override
+  Future<LibraryTrack?> loadTrackById(int id) async => null;
+
+  @override
+  Future<List<int>?> loadArtwork(int trackId) async => null;
+
+  @override
+  Future<List<LibraryTrack>> scanFallbackLocal(String path) =>
+      scanAndCache(path);
 }

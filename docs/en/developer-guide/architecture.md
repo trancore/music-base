@@ -14,11 +14,17 @@ Local file access, SMB access, audio playback, MusicBrainz integration, tag hand
 
 ## Persistence
 
-Settings are stored with SharedPreferences. Library cache data is stored in a Drift SQLite database; the initial schema provides a foundation for source path, title, artist, album, and last-seen timestamp. Audio files are never copied into the database. Files in the selected local directory or SMB share remain the source of truth.
+Settings are stored with SharedPreferences. Library cache data is stored in a Drift SQLite database with source path, title, artist, album, file fingerprint, and last-seen timestamp. FTS5 search, keyset pagination, hash-deduplicated artwork, and lazy artwork loading support up to 100,000 tracks without materializing the whole library in memory. Audio files are never copied into the database. Files in the selected local directory or SMB share remain the source of truth.
+
+Library rescans run asynchronously without replacing the UI state with a loading state, so the previously loaded cache page remains available until completion. After success, track and group data are reloaded. On failure, the cache stays visible and the failure is exposed as a recoverable warning.
+
+Album and artist views are aggregated in SQLite and the groups themselves use keyset pagination. Opening or playing a group reuses the track query with an album or artist constraint, so grouped browsing does not materialize the complete library in memory.
+
+The cache also stores FLAC disc and track numbers plus a metadata parser version. The SMB scanner walks FLAC metadata-block headers with range reads and fetches only Vorbis Comments and PICTURE data up to 2 MB. A cached track with an older parser version is reprocessed on the next scan even when its file fingerprint is unchanged.
 
 The local directory scanner walks subdirectories recursively and currently treats FLAC and MP3 files as library candidates. Local scans read embedded MP3 ID3 and FLAC Vorbis metadata through `audio_metadata_reader`, including artwork up to 2 MB, then fall back to path-derived metadata when tags are unavailable. Metadata and artwork are cached in the Drift library table. Additional formats and tag parsing belong behind the scanner and metadata service boundaries.
 
-Audio playback is accessed through the `PlaybackService` abstraction. The current implementation uses just_audio, its Windows implementation, and the native Darwin implementation to play files by path. The UI observes service state instead of depending directly on the playback engine.
+Audio playback is accessed through the `PlaybackService` abstraction. The current implementation uses just_audio, its Windows implementation, and the native Darwin implementation to play files by path. Play-all order is stored in a temporary SQLite queue and only the track at the current position is resolved. The UI observes service state instead of depending directly on the playback engine.
 
 Internet radio stations are represented by `InternetRadioStation` and managed through `RadioStationRepository`. Station data is stored in SharedPreferences and converted to `AudioSource.uri` for playback. Web page URLs are not treated as stream URLs; the input is validated and tested with just_audio before saving.
 
@@ -28,11 +34,11 @@ Audio analysis is accessed through the `AudioAnalysisService` abstraction. Local
 
 Frequency-spectrum calculation is isolated in the pure-Dart `calculateSpectrum` domain function. It bounds each input frame to 2,048 samples and the output to 128 bands so Windows and Android PCM adapters can reuse it safely.
 
-The Android `RealtimeSpectrumService` passes the Android AudioSession ID exposed by `just_audio` through a MethodChannel to the native `android.media.audiofx.Visualizer`, then publishes FFT callbacks to Flutter through an EventChannel. macOS uses a native system-audio capture stream on macOS 14.2 or later and sends in-memory PCM frames through its own EventChannel. If a native capture API cannot be started or permission is denied, the UI falls back to the regular visualizer.
+The Android `RealtimeSpectrumService` passes the Android AudioSession ID exposed by `just_audio` through a MethodChannel to the native `android.media.audiofx.Visualizer`, then publishes FFT callbacks to Flutter through an EventChannel. On macOS 14.2 or later, ScreenCaptureKit is filtered to this application process before in-memory PCM frames are sent through its EventChannel. If a native capture API cannot be started or permission is denied, the UI falls back to the regular visualizer.
 
-The Windows `RealtimeSpectrumService` implementation captures PCM frames from the default render device through the Windows SDK WASAPI loopback API and sends them to Flutter through an EventChannel. Flutter feeds each frame into `calculateSpectrum`. Frames are processed only in memory and are never saved as recordings.
+The Windows `RealtimeSpectrumService` implementation uses Windows process loopback to capture only PCM rendered by this application and its child processes, then sends frames to Flutter through an EventChannel. It does not capture other applications or the complete system mix. Flutter feeds each frame into `calculateSpectrum`. Frames are processed only in memory and are never saved as recordings.
 
-Playlists are persisted through the `PlaylistRepository` abstraction. The current implementation stores playlist names and source paths in SharedPreferences, then resolves those paths against the current library cache when a playlist is played. The create/edit UI selects library tracks and replaces the name and track list through `PlaylistNotifier`. Playlist data never copies the audio files.
+Playlists are persisted through the `PlaylistRepository` abstraction. SharedPreferences stores either a manual playlist's name and source paths or an auto playlist's name and match query. Manual playlists resolve paths against the current library cache at playback time; auto playlists apply their query to title, artist, album, and source path whenever they are displayed. `M3uPlaylistParser` converts UTF-8 M3U/M3U8 content into app path lists independently of file selection and UI state. Legacy persisted entries load as manual playlists. Playlist data never copies the audio files.
 
 MusicBrainz integration is accessed through `MusicBrainzService`. The API client maps JSON responses to `MusicBrainzRelease` models and applies an identifying User-Agent, a maximum request rate of one request per second, and an in-memory search-result cache.
 

@@ -585,7 +585,7 @@ class _RadioBrowserSearchDialogState
                     decoration: const InputDecoration(
                       prefixIcon: Icon(Icons.search),
                       labelText: 'Search stations',
-                      hintText: 'SomaFM, BBC, jazz...',
+                      hintText: 'BBC, jazz...',
                     ),
                     onSubmitted: (_) => _search(),
                   ),
