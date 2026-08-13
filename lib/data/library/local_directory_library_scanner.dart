@@ -4,6 +4,7 @@ import 'dart:isolate';
 import 'package:path/path.dart' as p;
 
 import 'audio_metadata_reader.dart';
+import 'cached_library_track.dart';
 import '../../domain/library/library_errors.dart';
 import '../../domain/library/library_metadata.dart';
 import '../../domain/library/library_scanner.dart';
@@ -56,21 +57,7 @@ class LocalDirectoryLibraryScanner implements LibraryScanner {
             cached.fileSize == stat.size &&
             cached.modifiedAt == stat.modified &&
             cached.metadataVersion >= 1) {
-          tracks.add(
-            LibraryTrack(
-              cacheId: cached.cacheId,
-              sourcePath: cached.sourcePath,
-              title: cached.title,
-              artist: cached.artist,
-              album: cached.album,
-              lastSeenAt: DateTime.now(),
-              fileSize: cached.fileSize,
-              modifiedAt: cached.modifiedAt,
-              discNumber: cached.discNumber,
-              trackNumber: cached.trackNumber,
-              metadataVersion: cached.metadataVersion,
-            ),
-          );
+          tracks.add(refreshCachedTrack(cached, lastSeenAt: DateTime.now()));
           continue;
         }
         final metadata = _metadataReader.read(entity, inferredMetadata);
