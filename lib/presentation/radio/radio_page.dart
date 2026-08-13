@@ -17,7 +17,6 @@ class RadioPage extends ConsumerWidget {
     final sort = ref.watch(radioStationSortProvider);
     return Scaffold(
       appBar: AppBar(
-        primary: false,
         title: const Text('Internet radio'),
         actions: [
           IconButton(

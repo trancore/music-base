@@ -16,6 +16,7 @@ class MusicBaseApp extends ConsumerWidget {
 
     return MaterialApp.router(
       title: 'Music Base',
+      debugShowCheckedModeBanner: false,
       theme: buildTheme(Brightness.light, accentColor),
       darkTheme: buildTheme(Brightness.dark, accentColor),
       themeMode: themeMode,

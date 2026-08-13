@@ -32,6 +32,7 @@ void main() {
     expect(find.text('Music Base'), findsOneWidget);
     expect(find.text('Music library'), findsOneWidget);
     expect(find.text('Library'), findsOneWidget);
+    expect(find.byType(CheckedModeBanner), findsNothing);
   });
 
   testWidgets('shows inferred artist and album in a library track row', (

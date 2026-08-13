@@ -43,7 +43,6 @@ class _HomePageState extends ConsumerState<HomePage> {
     return Scaffold(
       appBar: isCompact
           ? AppBar(
-              primary: false,
               title: const Text('Library'),
               actions: [
                 IconButton(
