@@ -1,0 +1,70 @@
+name: Sync hotfix to develop
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: sync-hotfix-to-develop
+  cancel-in-progress: false
+
+jobs:
+  create-sync-pull-request:
+    name: Create main to develop pull request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create sync pull request when needed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          source_pr="$(gh api \
+            "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" \
+            --jq '[.[] | select(
+              .merged_at != null and
+              .base.ref == "main" and
+              (.head.ref | startswith("hotfix/"))
+            )] | sort_by(.merged_at) | last // empty')"
+          if [[ -z "$source_pr" ]]; then
+            echo 'The main update did not come from a merged hotfix pull request.'
+            exit 0
+          fi
+
+          source_pr_number="$(jq -r '.number' <<<"$source_pr")"
+          source_pr_title="$(jq -r '.title' <<<"$source_pr")"
+          source_pr_url="$(jq -r '.html_url' <<<"$source_pr")"
+          ahead_by="$(gh api \
+            "repos/$GITHUB_REPOSITORY/compare/develop...main" \
+            --jq '.ahead_by')"
+          if [[ "$ahead_by" == '0' ]]; then
+            echo 'main has no commits to sync to develop.'
+            exit 0
+          fi
+
+          existing_pr="$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --state open \
+            --base develop \
+            --head main \
+            --json number \
+            --jq '.[0].number // empty')"
+          if [[ -n "$existing_pr" ]]; then
+            echo "Sync pull request #$existing_pr is already open."
+            exit 0
+          fi
+
+          body="$(printf '%s\n\n%s\n\n%s' \
+            'mainへマージされたhotfixをdevelopへ反映します。' \
+            "元PR: [$source_pr_title]($source_pr_url)" \
+            'このPRはhotfixのマージ後に自動作成されました。')"
+          gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --base develop \
+            --head main \
+            --title "hotfixをdevelopへ同期 (#$source_pr_number)" \
+            --body "$body"
