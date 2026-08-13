@@ -39,17 +39,24 @@ final resolvedPlaylistTracksProvider = FutureProvider.autoDispose
 
       final sourceKey = await repository.loadSourcePath();
       final tracks = <LibraryTrack>[];
+      final autoRule = playlist.autoRule;
       LibraryCursor? cursor;
       do {
         final page = await repository.queryTracks(
           LibraryQuery(
             sourceKey: sourceKey,
-            search: playlist.query ?? '',
+            search: autoRule == null ? playlist.query ?? '' : '',
             pageSize: 500,
             cursor: cursor,
           ),
         );
-        tracks.addAll(page.items);
+        tracks.addAll(
+          autoRule == null
+              ? page.items
+              : page.items.where(
+                  (track) => autoRule.matches(artist: track.artist),
+                ),
+        );
         cursor = page.nextCursor;
       } while (cursor != null);
       return List.unmodifiable(tracks);
@@ -107,6 +114,7 @@ class PlaylistNotifier extends AsyncNotifier<List<Playlist>> {
     String name,
     String query, {
     String? parentFolderId,
+    AutoPlaylistRule? autoRule,
   }) async {
     final trimmedName = name.trim();
     final trimmedQuery = query.trim();
@@ -117,6 +125,7 @@ class PlaylistNotifier extends AsyncNotifier<List<Playlist>> {
         name: trimmedName,
         type: PlaylistType.automatic,
         query: trimmedQuery,
+        autoRule: autoRule,
         parentFolderId: parentFolderId,
         sortOrder: await _nextSortOrder(parentFolderId),
       ),

@@ -129,6 +129,89 @@ void main() {
     expect(find.textContaining('2 imported'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('imports a MusicBee smart playlist as an automatic playlist', (
+    tester,
+  ) async {
+    final playlistRepository = _TreePlaylistRepository(
+      folders: [],
+      playlists: [],
+    );
+    final file = XFile.fromData(
+      Uint8List.fromList(
+        utf8.encode('''
+<SmartPlaylist LiveUpdating="True">
+  <Source><Conditions CombineMethod="All">
+    <Condition Field="ArtistPeople" Comparison="StartsWith" Value="Matthias Höfs" />
+  </Conditions></Source>
+</SmartPlaylist>
+'''),
+      ),
+      path: '/tmp/Trumpet - Matthias Höfs -.xautopf',
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          playlistRepositoryProvider.overrideWithValue(playlistRepository),
+          libraryRepositoryProvider.overrideWithValue(
+            const _EmptyLibraryRepository(),
+          ),
+          playlistFilePickerProvider.overrideWithValue(() async => [file]),
+        ],
+        child: const MaterialApp(home: PlaylistsPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Import playlist files'));
+    await tester.pumpAndSettle();
+
+    final imported = playlistRepository.playlists.single;
+    expect(imported.name, 'Trumpet - Matthias Höfs -');
+    expect(imported.type, PlaylistType.automatic);
+    expect(imported.autoRule?.value, 'Matthias Höfs');
+    expect(find.textContaining('1 imported'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('does not save a smart playlist when library loading fails', (
+    tester,
+  ) async {
+    final playlistRepository = _TreePlaylistRepository(
+      folders: [],
+      playlists: [],
+    );
+    final file = XFile.fromData(
+      Uint8List.fromList(
+        utf8.encode('''
+<SmartPlaylist><Source><Conditions CombineMethod="All">
+  <Condition Field="ArtistPeople" Comparison="StartsWith" Value="Matthias Höfs" />
+</Conditions></Source></SmartPlaylist>
+'''),
+      ),
+      path: '/tmp/Unavailable library.xautopf',
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          playlistRepositoryProvider.overrideWithValue(playlistRepository),
+          libraryRepositoryProvider.overrideWithValue(
+            const _FailingLibraryRepository(),
+          ),
+          playlistFilePickerProvider.overrideWithValue(() async => [file]),
+        ],
+        child: const MaterialApp(home: PlaylistsPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Import playlist files'));
+    await tester.pumpAndSettle();
+
+    expect(playlistRepository.playlists, isEmpty);
+    expect(find.textContaining('1 failed'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 class _TreePlaylistRepository implements PlaylistRepository {
@@ -206,4 +289,13 @@ class _EmptyLibraryRepository implements LibraryRepository {
     SmbSource source,
     String password,
   ) async => const [];
+}
+
+class _FailingLibraryRepository extends _EmptyLibraryRepository {
+  const _FailingLibraryRepository();
+
+  @override
+  Future<LibraryPage> queryTracks(LibraryQuery query) async {
+    throw StateError('library unavailable');
+  }
 }

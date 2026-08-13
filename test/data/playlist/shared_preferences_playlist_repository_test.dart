@@ -53,11 +53,19 @@ void main() {
         name: 'Matching tracks',
         type: PlaylistType.automatic,
         query: 'orchestra',
+        autoRule: AutoPlaylistRule(
+          field: AutoPlaylistField.artist,
+          comparison: AutoPlaylistComparison.startsWith,
+          value: 'orchestra',
+        ),
       ),
     );
     final automatic = (await repository.loadAll()).last;
     expect(automatic.type, PlaylistType.automatic);
     expect(automatic.query, 'orchestra');
+    expect(automatic.autoRule?.field, AutoPlaylistField.artist);
+    expect(automatic.autoRule?.comparison, AutoPlaylistComparison.startsWith);
+    expect(automatic.autoRule?.value, 'orchestra');
     expect(automatic.trackPaths, isEmpty);
   });
 

@@ -9,6 +9,7 @@ import '../../app/playlist_providers.dart';
 import '../../app/playlist_import_resolver.dart';
 import '../../data/playback/library_playback_queue.dart';
 import '../../data/playlist/m3u_playlist_parser.dart';
+import '../../data/playlist/musicbee_auto_playlist_parser.dart';
 import '../../data/playlist/musicbee_playlist_parser.dart';
 import '../../domain/library/library_query.dart';
 import '../../domain/library/library_path_normalizer.dart';
@@ -28,7 +29,10 @@ typedef PlaylistFilePicker = Future<List<XFile>> Function();
 final playlistFilePickerProvider = Provider<PlaylistFilePicker>((ref) {
   return () => openFiles(
     acceptedTypeGroups: const [
-      XTypeGroup(label: 'Playlist files', extensions: ['m3u', 'm3u8', 'mbp']),
+      XTypeGroup(
+        label: 'Playlist files',
+        extensions: ['m3u', 'm3u8', 'mbp', 'xautopf'],
+      ),
     ],
   );
 });
@@ -308,8 +312,27 @@ class PlaylistsPage extends ConsumerWidget {
     XFile file,
   ) async {
     final bytes = await file.readAsBytes();
+    final extension = p.extension(file.path).toLowerCase();
+    if (extension == '.xautopf') {
+      final imported = const MusicBeeAutoPlaylistParser().parseBytes(
+        bytes,
+        sourcePath: file.path,
+      );
+      final matches = (await _loadAllLibraryTracks(
+        ref,
+      )).where((track) => imported.rule.matches(artist: track.artist)).length;
+      await notifier.createAutomatic(
+        imported.name,
+        imported.rule.value,
+        autoRule: imported.rule,
+      );
+      return _PlaylistFileImportOutcome(
+        trackCount: matches,
+        availableCount: matches,
+      );
+    }
     final ({String name, List<String> trackPaths}) imported;
-    if (p.extension(file.path).toLowerCase() == '.mbp') {
+    if (extension == '.mbp') {
       final result = const MusicBeePlaylistParser().parseBytes(
         bytes,
         sourcePath: file.path,

@@ -12,6 +12,8 @@ import 'smb_audio_source.dart';
 
 class JustAudioPlaybackService extends ChangeNotifier
     implements PlaybackService {
+  static const _radioLoadTimeout = Duration(seconds: 12);
+
   JustAudioPlaybackService(this._player, {this.remoteSourceFactory}) {
     _subscriptions = [
       _player.playerStateStream.listen((state) {
@@ -169,18 +171,36 @@ class JustAudioPlaybackService extends ChangeNotifier
         repeatEnabled: false,
       );
       notifyListeners();
-      await _player.setAudioSource(
-        AudioSource.uri(Uri.parse(station.streamUrl), tag: mediaItem),
+      await _player
+          .setAudioSource(
+            AudioSource.uri(Uri.parse(station.streamUrl), tag: mediaItem),
+          )
+          .timeout(
+            _radioLoadTimeout,
+            onTimeout: () async {
+              await _player.stop();
+              throw TimeoutException(
+                'The station did not respond within '
+                '${_radioLoadTimeout.inSeconds} seconds.',
+              );
+            },
+          );
+      unawaited(
+        _player.play().onError((error, stackTrace) {
+          _setError('Unable to play this radio station: $error');
+        }),
       );
-      await _player.play();
     } on PlayerException catch (error) {
       _setError(
         'Unable to play this radio station: ${error.message ?? error.code}',
       );
+      rethrow;
     } on PlayerInterruptedException catch (error) {
       _setError('Radio playback was interrupted: ${error.message}');
+      rethrow;
     } on Exception catch (error) {
       _setError('Unable to play this radio station: $error');
+      rethrow;
     }
   }
 

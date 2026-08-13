@@ -15,6 +15,7 @@
 
 namespace {
 constexpr size_t kFrameSize = 256;
+constexpr DWORD kProcessActivationTimeoutMs = 3000;
 
 class ProcessLoopbackActivationHandler final
     : public IActivateAudioInterfaceCompletionHandler {
@@ -42,7 +43,8 @@ class ProcessLoopbackActivationHandler final
         VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK, __uuidof(IAudioClient),
         &activation_params, this, &operation);
     if (FAILED(result)) return result;
-    const DWORD wait_result = WaitForSingleObject(completed_, 10000);
+    const DWORD wait_result =
+        WaitForSingleObject(completed_, kProcessActivationTimeoutMs);
     operation->Release();
     if (wait_result != WAIT_OBJECT_0) {
       return HRESULT_FROM_WIN32(ERROR_TIMEOUT);
@@ -98,6 +100,26 @@ class ProcessLoopbackActivationHandler final
   IAudioClient* client_ = nullptr;
 };
 
+HRESULT ActivateDefaultRenderLoopback(IAudioClient** client) {
+  if (!client) return E_POINTER;
+  *client = nullptr;
+
+  IMMDeviceEnumerator* enumerator = nullptr;
+  IMMDevice* device = nullptr;
+  HRESULT result = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr,
+                                    CLSCTX_ALL, IID_PPV_ARGS(&enumerator));
+  if (SUCCEEDED(result)) {
+    result = enumerator->GetDefaultAudioEndpoint(eRender, eMultimedia, &device);
+  }
+  if (SUCCEEDED(result)) {
+    result = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr,
+                              reinterpret_cast<void**>(client));
+  }
+  if (device) device->Release();
+  if (enumerator) enumerator->Release();
+  return result;
+}
+
 float ReadSample(const BYTE* data, size_t index, const WAVEFORMATEX* format,
                  bool is_float) {
   if (is_float) {
@@ -146,11 +168,6 @@ void WindowsSpectrumCapture::Capture(std::unique_ptr<EventSink> sink) {
   const HRESULT activation_result = activation->Activate(GetCurrentProcessId());
   if (SUCCEEDED(activation_result)) client = activation->DetachClient();
   activation->Release();
-  if (FAILED(activation_result) || !client) {
-    cleanup();
-    return;
-  }
-
   format.wFormatTag = WAVE_FORMAT_PCM;
   format.nChannels = 2;
   format.nSamplesPerSec = 44100;
@@ -159,12 +176,37 @@ void WindowsSpectrumCapture::Capture(std::unique_ptr<EventSink> sink) {
       format.nChannels * format.wBitsPerSample / 8;
   format.nAvgBytesPerSec = format.nSamplesPerSec * format.nBlockAlign;
 
-  if (FAILED(client->Initialize(AUDCLNT_SHAREMODE_SHARED,
-                                AUDCLNT_STREAMFLAGS_LOOPBACK |
-                                    AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM,
-                                0, 0, &format, nullptr)) ||
-      FAILED(client->GetService(IID_PPV_ARGS(&capture))) ||
-      FAILED(client->Start())) {
+  const auto initialize_capture = [&]() -> HRESULT {
+    if (!client) return E_POINTER;
+    HRESULT result = client->Initialize(
+        AUDCLNT_SHAREMODE_SHARED,
+        AUDCLNT_STREAMFLAGS_LOOPBACK | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM, 0,
+        0, &format, nullptr);
+    if (SUCCEEDED(result)) {
+      result = client->GetService(IID_PPV_ARGS(&capture));
+    }
+    if (SUCCEEDED(result)) result = client->Start();
+    return result;
+  };
+
+  HRESULT capture_result = FAILED(activation_result)
+                               ? activation_result
+                               : client ? initialize_capture() : E_POINTER;
+  if (FAILED(capture_result)) {
+    if (capture) {
+      capture->Release();
+      capture = nullptr;
+    }
+    if (client) {
+      client->Release();
+      client = nullptr;
+    }
+    // Process loopback is unavailable on some Windows builds and audio stacks.
+    // Fall back to the default render endpoint so visualization keeps working.
+    capture_result = ActivateDefaultRenderLoopback(&client);
+    if (SUCCEEDED(capture_result)) capture_result = initialize_capture();
+  }
+  if (FAILED(capture_result)) {
     cleanup();
     return;
   }
@@ -188,12 +230,16 @@ void WindowsSpectrumCapture::Capture(std::unique_ptr<EventSink> sink) {
     if (FAILED(capture->GetBuffer(&data, &frames, &flags, nullptr, nullptr))) {
       break;
     }
+    const bool is_silent = (flags & AUDCLNT_BUFFERFLAGS_SILENT) != 0;
     for (UINT32 frame = 0; frame < frames; frame++) {
       double mono = 0;
-      for (size_t channel = 0; channel < channels; channel++) {
-        mono += ReadSample(data, frame * channels + channel, &format, is_float);
+      if (!is_silent) {
+        for (size_t channel = 0; channel < channels; channel++) {
+          mono +=
+              ReadSample(data, frame * channels + channel, &format, is_float);
+        }
       }
-      samples.push_back((flags & AUDCLNT_BUFFERFLAGS_SILENT)
+      samples.push_back(is_silent
                             ? 0.0
                             : std::clamp(mono / channels, -1.0, 1.0));
       if (samples.size() >= kFrameSize) {

@@ -33,6 +33,7 @@ class SharedPreferencesPlaylistRepository implements PlaylistRepository {
                   ? PlaylistType.automatic
                   : PlaylistType.manual,
               query: entry['query'] as String?,
+              autoRule: _autoRuleFromJson(entry['autoRule']),
               parentFolderId: entry['parentFolderId'] as String?,
               sortOrder: entry['sortOrder'] as int? ?? legacyOrder++,
             ),
@@ -118,9 +119,34 @@ class SharedPreferencesPlaylistRepository implements PlaylistRepository {
     'trackPaths': entry.trackPaths,
     'type': entry.type.name,
     if (entry.query != null) 'query': entry.query,
+    if (entry.autoRule != null)
+      'autoRule': {
+        'field': entry.autoRule!.field.name,
+        'comparison': entry.autoRule!.comparison.name,
+        'value': entry.autoRule!.value,
+      },
     if (entry.parentFolderId != null) 'parentFolderId': entry.parentFolderId,
     'sortOrder': entry.sortOrder,
   };
+
+  AutoPlaylistRule? _autoRuleFromJson(Object? value) {
+    if (value is! Map) return null;
+    final field = AutoPlaylistField.values
+        .where((entry) => entry.name == value['field'])
+        .firstOrNull;
+    final comparison = AutoPlaylistComparison.values
+        .where((entry) => entry.name == value['comparison'])
+        .firstOrNull;
+    final ruleValue = value['value'];
+    if (field == null || comparison == null || ruleValue is! String) {
+      return null;
+    }
+    return AutoPlaylistRule(
+      field: field,
+      comparison: comparison,
+      value: ruleValue,
+    );
+  }
 
   Map<String, Object?> _folderJson(PlaylistFolder entry) => {
     'id': entry.id,

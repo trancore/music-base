@@ -52,7 +52,7 @@ class MusicBrainzException implements Exception {
 class MusicBrainzApiClient implements MusicBrainzService {
   MusicBrainzApiClient({
     required this.httpClient,
-    this.userAgent = 'MusicBase/1.0.0 (https://github.com/trancore/music-base)',
+    this.userAgent = 'MusicBase/1.1.0 (https://github.com/trancore/music-base)',
     this.minimumRequestInterval = const Duration(seconds: 1),
     DateTime Function()? now,
   }) : _now = now ?? DateTime.now;
