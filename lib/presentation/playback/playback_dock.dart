@@ -108,6 +108,19 @@ class PlaybackDock extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 4),
+            if (snapshot.errorMessage case final error?)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  error,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
             if (!isRadio) ...[
               Text(
                 'Waveform / spectrum visualizer',

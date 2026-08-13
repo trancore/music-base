@@ -39,6 +39,9 @@ class JustAudioPlaybackService extends ChangeNotifier
           unawaited(skipNext());
         }
       }),
+      _player.errorStream.listen((error) {
+        _setError('Unable to play this file: ${error.message ?? error.code}');
+      }),
     ];
   }
 
@@ -107,6 +110,7 @@ class JustAudioPlaybackService extends ChangeNotifier
         currentIndex: _currentIndex,
         shuffleEnabled: _snapshot.shuffleEnabled,
         repeatEnabled: _snapshot.repeatEnabled,
+        errorMessage: null,
       );
       notifyListeners();
       if (track.isRemote) {

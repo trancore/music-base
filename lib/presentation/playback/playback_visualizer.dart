@@ -124,6 +124,8 @@ class _PlaybackVisualizerState extends State<PlaybackVisualizer>
 }
 
 class _VisualizerPainter extends CustomPainter {
+  static const displayBarCount = 320;
+
   const _VisualizerPainter({
     required this.progress,
     required this.phase,
@@ -144,8 +146,8 @@ class _VisualizerPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final barCount = spectrum?.length ?? 256;
-    const gap = 1.0;
+    const barCount = displayBarCount;
+    const gap = 0.8;
     final barWidth = (size.width - gap * (barCount - 1)) / barCount;
     final baseline = size.height - 10;
     const chartTop = 6.0;
@@ -227,7 +229,12 @@ class _VisualizerPainter extends CustomPainter {
 
   double _spectrumValue(int index) {
     final values = spectrum!;
-    return values[index.clamp(0, values.length - 1)];
+    if (values.length == 1) return values.first;
+    final position = index * (values.length - 1) / (displayBarCount - 1);
+    final lower = position.floor().clamp(0, values.length - 1);
+    final upper = position.ceil().clamp(0, values.length - 1);
+    final fraction = position - lower;
+    return values[lower] + (values[upper] - values[lower]) * fraction;
   }
 
   @override

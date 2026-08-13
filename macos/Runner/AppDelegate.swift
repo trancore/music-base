@@ -2,6 +2,7 @@ import Cocoa
 import FlutterMacOS
 import AudioToolbox
 import CoreMedia
+import CoreGraphics
 import ScreenCaptureKit
 
 @main
@@ -144,6 +145,17 @@ private final class MacosSpectrumCapture: NSObject, FlutterStreamHandler, SCStre
 
   func start() {
     stop()
+    guard CGPreflightScreenCaptureAccess() else {
+      _ = CGRequestScreenCaptureAccess()
+      DispatchQueue.main.async { [weak self] in
+        self?.eventSink?(FlutterError(
+          code: "SCREEN_RECORDING_PERMISSION_REQUIRED",
+          message: "Allow Music Base in System Settings > Privacy & Security > Screen Recording, then restart the app.",
+          details: nil
+        ))
+      }
+      return
+    }
     Task { [weak self] in
       guard let self else { return }
       do {
@@ -192,14 +204,34 @@ private final class MacosSpectrumCapture: NSObject, FlutterStreamHandler, SCStre
 
   private func pcmSamples(from sampleBuffer: CMSampleBuffer) -> [Double]? {
     guard let format = CMSampleBufferGetFormatDescription(sampleBuffer),
-          let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(format),
-          let dataBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) else { return nil }
-    var length = 0
-    var data: UnsafeMutablePointer<Int8>?
-    guard CMBlockBufferGetDataPointer(dataBuffer, atOffset: 0, lengthAtOffsetOut: nil, totalLengthOut: &length, dataPointerOut: &data) == noErr,
-          let data else { return nil }
-    let channels = max(Int(asbd.pointee.mChannelsPerFrame), 1)
-    let sampleCount = min(CMSampleBufferGetNumSamples(sampleBuffer), length / max(Int(asbd.pointee.mBytesPerFrame), 1))
+          let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(format) else { return nil }
+    var audioBufferList = AudioBufferList(
+      mNumberBuffers: 1,
+      mBuffers: AudioBuffer(mNumberChannels: 0, mDataByteSize: 0, mData: nil)
+    )
+    var retainedBlockBuffer: CMBlockBuffer?
+    let status = CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(
+      sampleBuffer,
+      bufferListSizeNeededOut: nil,
+      bufferListOut: &audioBufferList,
+      bufferListSize: MemoryLayout<AudioBufferList>.size,
+      blockBufferAllocator: nil,
+      blockBufferMemoryAllocator: nil,
+      flags: 0,
+      blockBufferOut: &retainedBlockBuffer
+    )
+    guard status == noErr,
+          let data = audioBufferList.mBuffers.mData else { return nil }
+    let channels = max(
+      Int(audioBufferList.mBuffers.mNumberChannels),
+      Int(asbd.pointee.mChannelsPerFrame),
+      1
+    )
+    let bytesPerFrame = max(Int(asbd.pointee.mBytesPerFrame), 1)
+    let sampleCount = min(
+      CMSampleBufferGetNumSamples(sampleBuffer),
+      Int(audioBufferList.mBuffers.mDataByteSize) / bytesPerFrame
+    )
     let isFloat = (asbd.pointee.mFormatFlags & kAudioFormatFlagIsFloat) != 0
     let isSigned = (asbd.pointee.mFormatFlags & kAudioFormatFlagIsSignedInteger) != 0
     let bytesPerSample = max(Int(asbd.pointee.mBitsPerChannel) / 8, 1)
@@ -208,11 +240,11 @@ private final class MacosSpectrumCapture: NSObject, FlutterStreamHandler, SCStre
     for frame in 0..<sampleCount {
       var sum = 0.0
       for channel in 0..<channels {
-        let offset = frame * Int(asbd.pointee.mBytesPerFrame) + channel * bytesPerSample
+        let offset = frame * bytesPerFrame + channel * bytesPerSample
         if isFloat && bytesPerSample == 4 {
-          sum += Double(data.withMemoryRebound(to: Float.self, capacity: length / 4) { $0[offset / 4] })
+          sum += Double(data.load(fromByteOffset: offset, as: Float.self))
         } else if isSigned && bytesPerSample == 2 {
-          sum += Double(data.withMemoryRebound(to: Int16.self, capacity: length / 2) { $0[offset / 2] }) / 32768.0
+          sum += Double(data.load(fromByteOffset: offset, as: Int16.self)) / 32768.0
         }
       }
       output.append((sum / Double(channels)).clamped(to: -1.0...1.0))

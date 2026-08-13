@@ -13,11 +13,11 @@ Change the location from Settings. In the local library section, choose a direct
 
 ## Credentials
 
-If the SMB share requires authentication, enter the SMB username and password. The password is stored in the platform secure credential store and is never written to logs or source code. If the connection test fails, check the host, share, credentials, and network connection.
+If the SMB share requires authentication, enter the SMB username and password. The password is stored in the platform secure credential store and is never written to logs or source code. After “Test connection and save” succeeds, the app saves the settings and automatically scans the configured subfolder. If the connection test fails, check the host, share, credentials, and network connection.
 
 ## macOS
 
-The macOS runner supports local and SMB libraries, playback, playlists, metadata, and the visualizer. macOS 14.2 or later is required. The first local-folder selection grants access to that folder; the app stores a security-scoped bookmark so the folder can be rescanned after restarting. Network access and audio-capture permission are required for SMB playback and the real-time spectrum.
+The macOS runner supports local and SMB libraries, playback, playlists, metadata, and the visualizer. macOS 14.2 or later is required. The first local-folder selection grants access to that folder; the app stores a security-scoped bookmark so the folder can be rescanned after restarting. Network access is required for SMB playback. If macOS asks for local-network access on the first connection, allow it. If it was denied, allow Music Base under System Settings → Privacy & Security → Local Network. Audio-capture permission is required for the real-time spectrum.
 
 CD ripping is not available on macOS.
 

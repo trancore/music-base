@@ -1,5 +1,7 @@
 // ignore_for_file: experimental_member_use
 
+import 'dart:typed_data';
+
 import 'package:dart_smb2/dart_smb2.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path/path.dart' as p;
@@ -123,18 +125,38 @@ class SmbStreamAudioSource extends StreamAudioSource {
     if (_closed) throw StateError('SMB audio source is closed.');
     final offset = (start ?? 0).clamp(0, length);
     final requestedEnd = (end ?? length).clamp(offset, length);
-    final bytes = await pool.readFileRange(
-      path,
-      offset: offset,
-      length: requestedEnd - offset,
-    );
-    return StreamAudioResponse(
-      sourceLength: length,
-      contentLength: bytes.length,
-      offset: offset,
-      stream: Stream.value(bytes),
-      contentType: contentType,
-    );
+    try {
+      final bytes = await _readRange(offset, requestedEnd);
+      return StreamAudioResponse(
+        sourceLength: length,
+        contentLength: bytes.length,
+        offset: offset,
+        stream: Stream.value(bytes),
+        contentType: contentType,
+      );
+    } on Exception {
+      rethrow;
+    }
+  }
+
+  Future<Uint8List> _readRange(int start, int end) async {
+    var offset = start;
+    const maxChunkSize = 8 * 1024 * 1024;
+    final builder = BytesBuilder(copy: false);
+    while (offset < end) {
+      final requestedLength = (end - offset).clamp(1, maxChunkSize);
+      final bytes = await pool.readFileRange(
+        path,
+        offset: offset,
+        length: requestedLength,
+      );
+      if (bytes.isEmpty) {
+        throw StateError('SMB returned no data at offset $offset for $path.');
+      }
+      builder.add(bytes);
+      offset += bytes.length;
+    }
+    return builder.takeBytes();
   }
 
   Future<void> close() async {
