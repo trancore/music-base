@@ -1,4 +1,4 @@
-part of 'library_providers.dart';
+﻿part of 'library_providers.dart';
 
 final libraryGroupsProvider =
     AsyncNotifierProvider<LibraryGroupsNotifier, List<LibraryGroup>>(
@@ -19,7 +19,7 @@ class LibraryGroupsNotifier extends AsyncNotifier<List<LibraryGroup>> {
   @override
   Future<List<LibraryGroup>> build() async {
     _repository = ref.watch(libraryRepositoryProvider);
-    await ref.watch(libraryProvider.future);
+    await ref.read(libraryProvider.future);
     final page = await _queryFirstPage(kind: kind, search: search);
     _applyPage(page);
     return page.items;

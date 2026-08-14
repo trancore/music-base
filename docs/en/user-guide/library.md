@@ -1,6 +1,6 @@
 # Music library
 
-Select a local music directory from Settings and the app scans it recursively. FLAC and MP3 files are currently included. Embedded MP3 ID3 and FLAC Vorbis metadata is preferred when available. For files without readable tags, common `Artist/Album/01 - Title.flac` layouts are used to infer the artist, album, and title; other files use the filename as the title.
+Select a local music directory from Settings and the app scans it recursively. FLAC, MP3, OGG, 3GP, and MP4 files are currently included. Embedded tags are preferred when available through `audio_metadata_reader`. For files without readable tags, common `Artist/Album/01 - Title.flac` layouts are used to infer the artist, album, and title; other files use the filename as the title.
 
 The paths and basic track information are cached in the local database. The selected library location remains the source of truth; audio files are never copied into the database.
 

@@ -1,5 +1,10 @@
 # AGENTS.md
 
+## エージェント設定の場所
+
+- **Codex**: 本ファイルと `.codex/skills/`
+- **Cursor**: 本ファイルと `.cursor/rules/`、`.cursor/skills/`（内容を揃える）
+
 ## プロジェクト概要
 
 このリポジトリは、WindowsとAndroid向けのFlutter製ミュージックプレイヤーです。

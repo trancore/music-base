@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 const defaultAccentColor = Color(0xFF8C7BFF);
 
@@ -71,7 +71,7 @@ ThemeData buildTheme(Brightness brightness, Color accentColor) {
     ),
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: isDark ? const Color(0xFF111217) : Colors.white,
-      height: 76,
+      height: 64,
       indicatorColor: scheme.primary.withValues(alpha: 0.18),
       indicatorShape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),

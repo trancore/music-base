@@ -1,7 +1,9 @@
-import 'dart:typed_data';
+﻿import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/library_providers.dart';
 import '../../domain/playback/audio_analysis_service.dart';
 import '../../domain/playback/playback_service.dart';
 import '../../domain/playback/realtime_spectrum_service.dart';
@@ -44,7 +46,8 @@ class PlaybackDock extends StatelessWidget {
         subtitle: isRadio
             ? 'Internet radio'
             : track?.artist ?? track?.album ?? 'Now playing',
-        artwork: track?.artwork,
+        track: isRadio ? null : track,
+        errorMessage: snapshot.errorMessage,
         isPlaying: snapshot.isPlaying,
         isRadio: isRadio,
         audioAnalysis: audioAnalysis,

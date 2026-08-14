@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -167,6 +167,169 @@ void main() {
     expect(container.read(libraryProvider).value?.single.title, 'second');
     expect(container.read(libraryProvider.notifier).query.search, 'second');
   });
+
+  test('manual SMB scan supersedes an in-flight background refresh', () async {
+    final backgroundGate = Completer<void>();
+    final repository = _FakeLibraryRepository(
+      sourcePath: 'smb://server/share',
+      scanGate: backgroundGate,
+      tracks: const [],
+    );
+    final container = ProviderContainer(
+      overrides: [
+        libraryRepositoryProvider.overrideWithValue(repository),
+        smbSourceProvider.overrideWith(_FakeSmbSourceNotifier.new),
+        smbSettingsRepositoryProvider.overrideWithValue(
+          const _FakeSmbSettingsRepository(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(libraryProvider.future);
+    final background = container
+        .read(libraryProvider.notifier)
+        .refreshInBackground();
+    await Future<void>.delayed(Duration.zero);
+    expect(container.read(libraryProvider.notifier).isRefreshing, isTrue);
+
+    final manual = container.read(libraryProvider.notifier).scanSmb();
+    await Future<void>.delayed(Duration.zero);
+    expect(repository.smbScanCount, 2);
+
+    backgroundGate.complete();
+    await manual;
+    await background;
+    expect(container.read(libraryProvider.notifier).isRefreshing, isFalse);
+    expect(
+      container.read(libraryProvider.notifier).activeSourcePath,
+      'smb://server/share',
+    );
+  });
+
+  test('manual SMB scan runs when cached tracks already exist', () async {
+    final repository = _FakeLibraryRepository(
+      sourcePath: 'smb://server/share',
+      tracks: const [LibraryTrack(sourcePath: r'\\server\share\Song.flac')],
+    );
+    final container = ProviderContainer(
+      overrides: [
+        libraryRepositoryProvider.overrideWithValue(repository),
+        smbSourceProvider.overrideWith(_FakeSmbSourceNotifier.new),
+        smbSettingsRepositoryProvider.overrideWithValue(
+          const _FakeSmbSettingsRepository(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(libraryProvider.future);
+    await container.read(libraryProvider.notifier).refreshInBackground();
+    expect(repository.smbScanCount, 0);
+
+    await container.read(libraryProvider.notifier).scanSmb();
+    expect(repository.smbScanCount, 1);
+  });
+
+  test('keeps SMB active when background refresh fails', () async {
+    final repository = _FakeLibraryRepository(
+      sourcePath: 'smb://server/share',
+      failuresRemaining: 1,
+      lastLocalSourcePath: '/music',
+      tracks: const [],
+    );
+    final container = ProviderContainer(
+      overrides: [
+        libraryRepositoryProvider.overrideWithValue(repository),
+        smbSourceProvider.overrideWith(_FakeSmbSourceNotifier.new),
+        smbSettingsRepositoryProvider.overrideWithValue(
+          const _FakeSmbSettingsRepository(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(libraryProvider.future);
+    await container.read(libraryProvider.notifier).refreshInBackground();
+
+    final notifier = container.read(libraryProvider.notifier);
+    expect(notifier.activeSourcePath, 'smb://server/share');
+    expect(notifier.refreshWarning, contains('SMB library refresh failed'));
+    expect(repository.fallbackLocalScanCount, 0);
+    expect(container.read(libraryProvider).value, isEmpty);
+  });
+
+  test('reports missing SMB configuration when scan is requested', () async {
+    final repository = _FakeLibraryRepository(
+      sourcePath: 'smb://server/share',
+      tracks: const [LibraryTrack(sourcePath: r'\\server\share\Song.flac')],
+    );
+    final container = ProviderContainer(
+      overrides: [
+        libraryRepositoryProvider.overrideWithValue(repository),
+        smbSourceProvider.overrideWith(_UnconfiguredSmbSourceNotifier.new),
+        smbSettingsRepositoryProvider.overrideWithValue(
+          const _FakeSmbSettingsRepository(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(libraryProvider.future);
+    await container.read(libraryProvider.notifier).scanSmb();
+
+    expect(
+      container.read(libraryProvider.notifier).refreshWarning,
+      'SMB library is not configured.',
+    );
+    expect(repository.smbScanCount, 0);
+  });
+
+  test('skips automatic SMB background refresh when cache exists', () async {
+    final repository = _FakeLibraryRepository(
+      sourcePath: 'smb://server/share',
+      tracks: const [LibraryTrack(sourcePath: r'\\server\share\Song.flac')],
+    );
+    final container = ProviderContainer(
+      overrides: [
+        libraryRepositoryProvider.overrideWithValue(repository),
+        smbSourceProvider.overrideWith(_FakeSmbSourceNotifier.new),
+        smbSettingsRepositoryProvider.overrideWithValue(
+          const _FakeSmbSettingsRepository(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(libraryProvider.future);
+    await container.read(libraryProvider.notifier).refreshInBackground();
+
+    expect(repository.smbScanCount, 0);
+    expect(container.read(libraryProvider.notifier).isRefreshing, isFalse);
+  });
+
+  test('refreshes SMB in the background when the cache is empty', () async {
+    final repository = _FakeLibraryRepository(
+      sourcePath: 'smb://server/share',
+      tracks: const [],
+    );
+    final container = ProviderContainer(
+      overrides: [
+        libraryRepositoryProvider.overrideWithValue(repository),
+        smbSourceProvider.overrideWith(_FakeSmbSourceNotifier.new),
+        smbSettingsRepositoryProvider.overrideWithValue(
+          const _FakeSmbSettingsRepository(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(libraryProvider.future);
+    await container.read(libraryProvider.notifier).refreshInBackground();
+
+    expect(repository.smbScanCount, 1);
+    expect(container.read(libraryProvider.notifier).isRefreshing, isFalse);
+  });
 }
 
 class _FakeSmbSettingsRepository implements SmbSettingsRepository {
@@ -191,6 +354,11 @@ class _FakeSmbSourceNotifier extends SmbSourceNotifier {
       const SmbSource(host: 'server', share: 'share', username: 'user');
 }
 
+class _UnconfiguredSmbSourceNotifier extends SmbSourceNotifier {
+  @override
+  Future<SmbSource?> build() async => null;
+}
+
 class _FakeLibraryRepository implements LibraryRepository {
   _FakeLibraryRepository({
     required this.sourcePath,
@@ -199,6 +367,7 @@ class _FakeLibraryRepository implements LibraryRepository {
     this.scanGate,
     this.queryGates = const {},
     this.queryTracksBySearch = const {},
+    this.lastLocalSourcePath,
   });
 
   final String sourcePath;
@@ -207,15 +376,20 @@ class _FakeLibraryRepository implements LibraryRepository {
   final Completer<void>? scanGate;
   final Map<String, Completer<void>> queryGates;
   final Map<String, List<LibraryTrack>> queryTracksBySearch;
+  final String? lastLocalSourcePath;
   final scannedPaths = <String>[];
   final queries = <LibraryQuery>[];
   var smbScanCount = 0;
+  var fallbackLocalScanCount = 0;
+  var savedSourcePath = '';
 
   @override
   Future<String?> loadSourcePath() async => sourcePath;
 
   @override
-  Future<void> saveSourcePath(String path) async {}
+  Future<void> saveSourcePath(String path) async {
+    savedSourcePath = path;
+  }
 
   @override
   Future<List<LibraryTrack>> loadTracks() async => const [];
@@ -237,11 +411,18 @@ class _FakeLibraryRepository implements LibraryRepository {
     String password,
   ) async {
     smbScanCount++;
+    if (scanGate != null && smbScanCount == 1) {
+      await scanGate!.future;
+    }
+    if (failuresRemaining > 0) {
+      failuresRemaining--;
+      throw StateError('temporary scan failure');
+    }
     return tracks;
   }
 
   @override
-  Future<String?> loadLastLocalSourcePath() async => null;
+  Future<String?> loadLastLocalSourcePath() async => lastLocalSourcePath;
 
   @override
   Future<LibraryPage> queryTracks(LibraryQuery query) async {
@@ -280,6 +461,8 @@ class _FakeLibraryRepository implements LibraryRepository {
   Future<List<int>?> loadArtwork(int trackId) async => null;
 
   @override
-  Future<List<LibraryTrack>> scanFallbackLocal(String path) =>
-      scanAndCache(path);
+  Future<List<LibraryTrack>> scanFallbackLocal(String path) async {
+    fallbackLocalScanCount++;
+    return scanAndCache(path);
+  }
 }
