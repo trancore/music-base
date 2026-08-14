@@ -49,6 +49,7 @@ class RadioPage extends ConsumerWidget {
                         width: 220,
                         child: DropdownButtonFormField<RadioStationSort>(
                           initialValue: sort,
+                          isExpanded: true,
                           decoration: const InputDecoration(
                             labelText: 'Sort stations',
                             prefixIcon: Icon(Icons.sort),
@@ -87,6 +88,7 @@ class RadioPage extends ConsumerWidget {
                       child: _StationList(
                         stations: _sortedStations(items, sort),
                         manualOrder: sort == RadioStationSort.manual,
+                        groupByGenre: sort == RadioStationSort.genre,
                         playback: playback,
                         onReorder: (oldIndex, newIndex) async {
                           if (sort != RadioStationSort.manual) return;
@@ -154,8 +156,15 @@ class RadioPage extends ConsumerWidget {
     if (station == null || !context.mounted) return;
     final result = station.toInternetRadioStation();
     try {
-      await ref.read(radioStreamTesterProvider).test(result);
       await ref.read(radioStationProvider.notifier).save(result);
+    } on Object {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not save this station.')),
+      );
+      return;
+    }
+    try {
       await ref.read(playbackServiceProvider).playRadioStation(result);
       if (!context.mounted) return;
       ScaffoldMessenger.of(
@@ -164,9 +173,9 @@ class RadioPage extends ConsumerWidget {
     } on Object {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'Stream test failed. Check the stream URL and try again.',
+            'Added ${result.name}, but playback could not start. Try again later.',
           ),
         ),
       );
@@ -201,6 +210,28 @@ class RadioPage extends ConsumerWidget {
   }
 }
 
+Future<void> _playRadioStation(
+  BuildContext context,
+  PlaybackService playback,
+  InternetRadioStation station,
+) async {
+  try {
+    await playback.playRadioStation(station);
+  } on Object {
+    if (!context.mounted) return;
+    final detail = playback.snapshot.errorMessage;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          detail == null || detail.isEmpty
+              ? 'Could not play ${station.name}. Try again later.'
+              : detail,
+        ),
+      ),
+    );
+  }
+}
+
 List<InternetRadioStation> _sortedStations(
   List<InternetRadioStation> stations,
   RadioStationSort sort,
@@ -218,13 +249,43 @@ List<InternetRadioStation> _sortedStations(
         (a, b) => b.name.toLowerCase().compareTo(a.name.toLowerCase()),
       );
     case RadioStationSort.genre:
-      sorted.sort(
-        (a, b) => (a.genre ?? '').toLowerCase().compareTo(
-          (b.genre ?? '').toLowerCase(),
-        ),
-      );
+      sorted.sort((a, b) {
+        final genreComparison = _primaryGenre(
+          a,
+        ).toLowerCase().compareTo(_primaryGenre(b).toLowerCase());
+        if (genreComparison != 0) return genreComparison;
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
   }
   return sorted;
+}
+
+String _primaryGenre(InternetRadioStation station) {
+  final tags = _radioTags(station.genre);
+  return tags.isEmpty ? 'Other' : tags.first;
+}
+
+List<({String genre, List<InternetRadioStation> stations})> _genreGroups(
+  List<InternetRadioStation> stations,
+) {
+  final grouped =
+      <String, ({String genre, List<InternetRadioStation> stations})>{};
+  for (final station in stations) {
+    final genre = _primaryGenre(station);
+    final key = genre.toLowerCase();
+    final group = grouped.putIfAbsent(
+      key,
+      () => (genre: genre, stations: <InternetRadioStation>[]),
+    );
+    group.stations.add(station);
+  }
+  final groups = grouped.values.toList(growable: false);
+  groups.sort((a, b) {
+    if (a.genre == 'Other') return 1;
+    if (b.genre == 'Other') return -1;
+    return a.genre.toLowerCase().compareTo(b.genre.toLowerCase());
+  });
+  return groups;
 }
 
 List<String> _radioTags(String? value) {
