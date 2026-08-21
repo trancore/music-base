@@ -7,6 +7,7 @@ import 'package:just_audio_background/just_audio_background.dart';
 import '../../domain/library/library_track.dart';
 import '../../domain/playback/playback_service.dart';
 import '../../domain/radio/internet_radio_station.dart';
+import '../../domain/library/smb_service.dart';
 import 'playback_audio_source_resolver.dart';
 import 'smb_audio_source.dart';
 
@@ -42,7 +43,10 @@ class JustAudioPlaybackService extends ChangeNotifier
         }
       }),
       _player.errorStream.listen((error) {
-        _setError('Unable to play this file: ${error.message ?? error.code}');
+        final track = _snapshot.currentTrack;
+        _setError(
+          _playbackErrorMessage(error.message ?? '${error.code}', track),
+        );
       }),
     ];
   }
@@ -143,11 +147,13 @@ class JustAudioPlaybackService extends ChangeNotifier
       await _player.setAudioSource(source);
       await _player.play();
     } on PlayerException catch (error) {
-      _setError('Unable to play this file: ${error.message ?? error.code}');
+      _setError(_playbackErrorMessage(error.message ?? '${error.code}', track));
     } on PlayerInterruptedException catch (error) {
       _setError('Playback was interrupted: ${error.message}');
+    } on SmbConnectionException catch (error) {
+      _setError(error.message);
     } on Exception catch (error) {
-      _setError('Unable to play this file: $error');
+      _setError(_playbackErrorMessage('$error', track));
     }
   }
 
@@ -361,6 +367,17 @@ class JustAudioPlaybackService extends ChangeNotifier
   void _stopRadioClock() {
     _radioClockTimer?.cancel();
     _radioClockTimer = null;
+  }
+
+  String _playbackErrorMessage(String detail, LibraryTrack? track) {
+    if (track?.isRemote == true) {
+      if (detail.toLowerCase().contains('timeout')) {
+        return 'SMB playback timed out. Check the network connection to your '
+            'NAS and try again.';
+      }
+      return 'Unable to play this SMB track: $detail';
+    }
+    return 'Unable to play this file: $detail';
   }
 
   void _setError(String message) {

@@ -22,7 +22,11 @@ class PlaybackAudioSourceResolver {
     if (factory == null) {
       throw const SmbConnectionException('SMB playback is not configured.');
     }
-    return _activeRemoteSource = await factory.create(track, tag: tag);
+    final source = await factory.create(track, tag: tag);
+    if (source is SmbStreamAudioSource) {
+      _activeRemoteSource = source;
+    }
+    return source;
   }
 
   Future<void> closeActiveRemoteSource() async {

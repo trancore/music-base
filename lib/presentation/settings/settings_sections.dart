@@ -1,4 +1,23 @@
-part of 'settings_page.dart';
+﻿part of 'settings_page.dart';
+
+class VersionSection extends ConsumerWidget {
+  const VersionSection({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final info = ref.watch(appVersionInfoProvider);
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.info_outline),
+      title: const Text('Version'),
+      subtitle: Text(info.label),
+      trailing: Text(
+        info.appName,
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+    );
+  }
+}
 
 class DocumentationSection extends ConsumerWidget {
   const DocumentationSection({super.key});
@@ -179,7 +198,11 @@ class _SmbConnectionFormState extends ConsumerState<SmbConnectionForm> {
         const SizedBox(height: 12),
         TextField(
           controller: _subfolderController,
-          decoration: const InputDecoration(labelText: 'Subfolder (optional)'),
+          decoration: const InputDecoration(
+            labelText: 'Subfolder (optional)',
+            helperText:
+                'Path inside the share. Use / between folders. Only $kSupportedLibraryExtensionsDescription files are scanned.',
+          ),
         ),
         const SizedBox(height: 12),
         TextField(
@@ -275,8 +298,8 @@ class _SmbConnectionFormState extends ConsumerState<SmbConnectionForm> {
         _success = scanError == null;
         _message = scanError != null
             ? 'Connection succeeded, but $scanError'
-            : 'Connection succeeded. Found '
-                  '${libraryNotifier.totalCount} FLAC/MP3 files.';
+            : 'Connection succeeded. Scanned ${source.displayPath}. Found '
+                  '${libraryNotifier.totalCount} $kSupportedLibraryFormatsDescription files.';
       });
     } on Exception catch (error) {
       if (!mounted) return;
@@ -304,11 +327,14 @@ class _SmbConnectionFormState extends ConsumerState<SmbConnectionForm> {
     if (!mounted) return;
     final libraryNotifier = ref.read(libraryProvider.notifier);
     final scanError = libraryNotifier.refreshWarning;
+    final smbSource = ref.read(smbSourceProvider).valueOrNull;
+    final target = smbSource?.displayPath ?? 'SMB share';
     setState(() {
       _busy = false;
       _success = scanError == null;
       _message =
-          scanError ?? 'Found ${libraryNotifier.totalCount} FLAC/MP3 files.';
+          scanError ??
+          'Scanned $target. Found ${libraryNotifier.totalCount} $kSupportedLibraryFormatsDescription files.';
     });
   }
 
@@ -334,6 +360,7 @@ class _SmbConnectionFormState extends ConsumerState<SmbConnectionForm> {
     );
     if (confirmed != true || !mounted) return;
     await ref.read(smbSourceProvider.notifier).clear();
+    await ref.read(libraryProvider.notifier).restoreLocalSourceAfterSmbClear();
     if (!mounted) return;
     _hostController.clear();
     _shareController.clear();

@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:music_base/app/app_version.dart';
 import 'package:music_base/app/library_providers.dart';
 import 'package:music_base/app/providers.dart';
 import 'package:music_base/app/smb_providers.dart';
@@ -81,6 +82,19 @@ void main() {
     expect(find.widgetWithText(TextField, source.share), findsOneWidget);
     expect(find.widgetWithText(TextField, source.subfolder), findsOneWidget);
     expect(find.widgetWithText(TextField, source.username), findsOneWidget);
+  });
+
+  testWidgets('shows application version information', (tester) async {
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(home: Scaffold(body: VersionSection())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Version'), findsOneWidget);
+    expect(find.text(kAppVersion), findsOneWidget);
+    expect(find.text(kAppName), findsOneWidget);
   });
 }
 

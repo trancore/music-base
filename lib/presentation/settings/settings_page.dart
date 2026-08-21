@@ -1,13 +1,15 @@
-import 'package:file_selector/file_selector.dart';
+﻿import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/providers.dart';
+import '../../app/app_version.dart';
 import '../../app/library_providers.dart';
 import '../../app/smb_providers.dart';
 import '../../domain/library/smb_source.dart';
+import '../../domain/library/library_audio_formats.dart';
 
 part 'settings_sections.dart';
 
@@ -102,6 +104,12 @@ class SettingsPage extends ConsumerWidget {
             title: 'Help',
             subtitle: 'Learn how to set up and use the application.',
             child: DocumentationSection(),
+          ),
+          const SizedBox(height: 16),
+          const _SettingsSection(
+            title: 'About',
+            subtitle: 'Application version information.',
+            child: VersionSection(),
           ),
         ],
       ),

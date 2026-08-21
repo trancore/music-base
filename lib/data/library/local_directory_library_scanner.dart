@@ -1,10 +1,9 @@
 import 'dart:io';
 import 'dart:isolate';
 
-import 'package:path/path.dart' as p;
-
 import 'audio_metadata_reader.dart';
 import 'cached_library_track.dart';
+import '../../domain/library/library_audio_formats.dart';
 import '../../domain/library/library_errors.dart';
 import '../../domain/library/library_metadata.dart';
 import '../../domain/library/library_scanner.dart';
@@ -16,8 +15,6 @@ class LocalDirectoryLibraryScanner implements LibraryScanner {
   });
 
   final PackageAudioMetadataReader _metadataReader;
-
-  static const supportedExtensions = {'.flac', '.mp3'};
 
   @override
   Future<List<LibraryTrack>> scan(
@@ -40,10 +37,7 @@ class LocalDirectoryLibraryScanner implements LibraryScanner {
         recursive: true,
         followLinks: false,
       )) {
-        if (entity is! File ||
-            !supportedExtensions.contains(
-              p.extension(entity.path).toLowerCase(),
-            )) {
+        if (entity is! File || !isSupportedLibraryExtension(entity.path)) {
           continue;
         }
 

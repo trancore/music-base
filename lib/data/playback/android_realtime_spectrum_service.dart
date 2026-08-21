@@ -1,35 +1,19 @@
-import 'package:flutter/services.dart';
+﻿import '../../domain/playback/spectrum_analyzer.dart';
+import 'channel_realtime_spectrum_service.dart';
 
-import '../../domain/playback/realtime_spectrum_service.dart';
-import '../../domain/playback/spectrum_analyzer.dart';
-
-class AndroidRealtimeSpectrumService implements RealtimeSpectrumService {
+/// Receives PCM or FFT frames from the Android Visualizer and converts them
+/// into the same normalized spectrum shape used by the desktop implementations.
+class AndroidRealtimeSpectrumService extends ChannelRealtimeSpectrumService {
   AndroidRealtimeSpectrumService()
-    : _events = const EventChannel('music_base/audio_spectrum');
-
-  final EventChannel _events;
-  final MethodChannel _methods = const MethodChannel(
-    'music_base/audio_spectrum/control',
-  );
+    : super(channelName: 'music_base/audio_spectrum');
 
   @override
-  Stream<List<double>> get spectrumStream =>
-      _events.receiveBroadcastStream().map(
-        (event) => mapLinearSpectrumToLogBands(
-          (event as List<dynamic>)
-              .map((value) => (value as num).toDouble().clamp(0.0, 1.0))
-              .toList(),
-        ),
-      );
-
-  @override
-  Future<void> start({int? audioSessionId}) async {
-    if (audioSessionId == null) return;
-    await _methods.invokeMethod<void>('start', {
-      'audioSessionId': audioSessionId,
-    });
+  Iterable<List<double>> expandEvent(List<double> values) {
+    if (values.isEmpty) return const [];
+    // Native FFT fallback emits a small fixed number of magnitude bands.
+    if (values.length <= 64) {
+      return [mapLinearSpectrumToLogBands(values)];
+    }
+    return super.expandEvent(values);
   }
-
-  @override
-  Future<void> stop() => _methods.invokeMethod<void>('stop');
 }

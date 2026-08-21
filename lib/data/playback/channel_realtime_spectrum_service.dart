@@ -1,3 +1,4 @@
+﻿import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../../domain/playback/realtime_spectrum_service.dart';
@@ -12,27 +13,42 @@ abstract class ChannelRealtimeSpectrumService
 
   final EventChannel _events;
   final MethodChannel _methods;
-  final List<double> _pendingSamples = [];
+  @protected
+  final List<double> pendingSamples = [];
+
+  /// Converts one native event payload into zero or more spectrum frames.
+  @protected
+  Iterable<List<double>> expandEvent(List<double> values) {
+    if (values.isEmpty) return const [];
+    pendingSamples.addAll(values);
+    if (pendingSamples.length < maxSpectrumSamples) return const [];
+    final frame = pendingSamples.sublist(0, maxSpectrumSamples);
+    pendingSamples.removeRange(0, maxSpectrumSamples);
+    return [calculateLogSpectrum(frame)];
+  }
 
   @override
   Stream<List<double>> get spectrumStream =>
       _events.receiveBroadcastStream().expand((event) {
-        _pendingSamples.addAll(
-          (event as List<dynamic>).map((value) => (value as num).toDouble()),
-        );
-        if (_pendingSamples.length < maxSpectrumSamples) return const [];
-        final frame = _pendingSamples.sublist(0, maxSpectrumSamples);
-        _pendingSamples.removeRange(0, maxSpectrumSamples);
-        return [calculateLogSpectrum(frame)];
+        final values = (event as List<dynamic>)
+            .map((value) => (value as num).toDouble())
+            .toList();
+        return expandEvent(values);
       });
 
   @override
-  Future<void> start({int? audioSessionId}) =>
-      _methods.invokeMethod<void>('start');
+  Future<void> start({int? audioSessionId}) {
+    if (audioSessionId != null) {
+      return _methods.invokeMethod<void>('start', {
+        'audioSessionId': audioSessionId,
+      });
+    }
+    return _methods.invokeMethod<void>('start');
+  }
 
   @override
   Future<void> stop() async {
-    _pendingSamples.clear();
+    pendingSamples.clear();
     await _methods.invokeMethod<void>('stop');
   }
 }
