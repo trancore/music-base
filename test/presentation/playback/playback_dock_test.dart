@@ -121,7 +121,7 @@ class _RecordingPlaybackService extends ChangeNotifier
         duration: const Duration(minutes: 3),
       );
 
-  PlaybackSnapshot _snapshot;
+  final PlaybackSnapshot _snapshot;
   final actions = <String>[];
 
   @override

@@ -222,6 +222,7 @@ class _TrackTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final borderColor = Theme.of(context).dividerColor;
+    const headerHeight = 44.0;
     const columnWidths = {
       0: FixedColumnWidth(104),
       1: FlexColumnWidth(2.4),
@@ -275,7 +276,9 @@ class _TrackTable extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         child: SizedBox(
           width: tableWidth,
-          height: availableHeight,
+          height: availableHeight < headerHeight
+              ? headerHeight
+              : availableHeight,
           child: Column(
             children: [
               header,
