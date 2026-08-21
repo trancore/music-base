@@ -6,7 +6,7 @@ import 'package:music_base/data/library/local_directory_library_scanner.dart';
 
 void main() {
   test(
-    'finds FLAC and MP3 files recursively and ignores other files',
+    'finds supported audio files recursively and ignores other files',
     () async {
       final root = await Directory.systemTemp.createTemp(
         'music_base_scanner_test_',
@@ -16,13 +16,14 @@ void main() {
       await Directory('${root.path}/album').create();
       await File('${root.path}/album/01 - Intro.flac').writeAsString('');
       await File('${root.path}/album/02 - Song.MP3').writeAsString('');
+      await File('${root.path}/album/03 - Bonus.ogg').writeAsString('');
       await File('${root.path}/album/cover.jpg').writeAsString('');
 
       final tracks = await const LocalDirectoryLibraryScanner().scan(root.path);
 
-      expect(tracks, hasLength(2));
-      expect(tracks.map((track) => track.title), ['Intro', 'Song']);
-      expect(tracks.map((track) => track.album), ['album', 'album']);
+      expect(tracks, hasLength(3));
+      expect(tracks.map((track) => track.title), ['Intro', 'Song', 'Bonus']);
+      expect(tracks.map((track) => track.album), ['album', 'album', 'album']);
     },
   );
 

@@ -1,4 +1,4 @@
-# Architecture
+﻿# Architecture
 
 Keep UI, state management, domain logic, data access, and platform-specific code separated. The initial implementation uses Riverpod for state management and dependency injection, and go_router for navigation. The app shell uses a desktop sidebar and a top-fixed playback dock on wider screens, and a top-fixed playback dock with bottom navigation below 700px. Routes share a short fade-and-horizontal-slide transition.
 
@@ -26,7 +26,7 @@ Album and artist views are aggregated in SQLite and the groups themselves use ke
 
 The cache also stores FLAC disc and track numbers plus a metadata parser version. The SMB scanner walks FLAC metadata-block headers with range reads and fetches only Vorbis Comments and PICTURE data up to 2 MB. A cached track with an older parser version is reprocessed on the next scan even when its file fingerprint is unchanged.
 
-The local directory scanner walks subdirectories recursively and currently treats FLAC and MP3 files as library candidates. Local scans read embedded MP3 ID3 and FLAC Vorbis metadata through `audio_metadata_reader`, including artwork up to 2 MB, then fall back to path-derived metadata when tags are unavailable. Metadata and artwork are cached in the Drift library table. Additional formats and tag parsing belong behind the scanner and metadata service boundaries.
+The local directory scanner walks subdirectories recursively and currently treats FLAC, MP3, OGG, 3GP, and MP4 files as library candidates. Supported extensions are centralized in `library_audio_formats.dart`. Local scans read embedded metadata through `audio_metadata_reader`, including artwork up to 2 MB, then fall back to path-derived metadata when tags are unavailable. Metadata and artwork are cached in the Drift library table. Additional formats and tag parsing belong behind the scanner and metadata service boundaries.
 
 Audio playback is accessed through the `PlaybackService` abstraction. The current implementation uses just_audio, its Windows implementation, and the native Darwin implementation to play files by path. Play-all order is stored in a temporary SQLite queue and only the track at the current position is resolved. The UI observes service state instead of depending directly on the playback engine.
 
@@ -40,7 +40,7 @@ Audio analysis is accessed through the `AudioAnalysisService` abstraction. Local
 
 Frequency-spectrum calculation is isolated in the pure-Dart `calculateSpectrum` domain function. It bounds each input frame to 2,048 samples and the output to 128 bands so Windows and Android PCM adapters can reuse it safely.
 
-The Android `RealtimeSpectrumService` passes the Android AudioSession ID exposed by `just_audio` through a MethodChannel to the native `android.media.audiofx.Visualizer`, then publishes FFT callbacks to Flutter through an EventChannel. On macOS 14.2 or later, ScreenCaptureKit is filtered to this application process before in-memory PCM frames are sent through its EventChannel. If a native capture API cannot be started or permission is denied, the UI falls back to the regular visualizer.
+The Android `RealtimeSpectrumService` passes the Android AudioSession ID exposed by `just_audio` through a MethodChannel to the native `android.media.audiofx.Visualizer`, then publishes waveform PCM to Flutter through an EventChannel. Dart converts those frames with the same `calculateLogSpectrum` pipeline used on desktop. On macOS 14.2 or later, ScreenCaptureKit is filtered to this application process before in-memory PCM frames are sent through its EventChannel. If a native capture API cannot be started or permission is denied, the UI falls back to the regular visualizer.
 
 The Windows `RealtimeSpectrumService` implementation uses Windows process loopback to capture PCM rendered by this application and its child processes, then sends frames to Flutter through an EventChannel. If asynchronous activation or initialization fails, it switches to system loopback on the default output device. Flutter feeds each frame into `calculateSpectrum`. Frames are processed only in memory and are never saved as recordings.
 
@@ -48,7 +48,7 @@ Playlists and playlist folders are persisted through the `PlaylistRepository` ab
 
 MusicBrainz integration is accessed through `MusicBrainzService`. The API client maps JSON responses to `MusicBrainzRelease` models and applies an identifying User-Agent, a maximum request rate of one request per second, and an in-memory search-result cache.
 
-SMB connectivity is accessed through the `SmbService` abstraction. Host, share, subfolder, and username are stored as settings, while the password is stored with `flutter_secure_storage`. The SMB scanner recursively walks the share, filters FLAC/MP3 files, and caches them in the library database as a separate operation from connection testing. SMB playback maps `StreamAudioSource` range requests to SMB partial reads, so the audio file is played without copying it into the app.
+SMB connectivity is accessed through the `SmbService` abstraction. Host, share, subfolder, and username are stored as settings, while the password is stored with `flutter_secure_storage`. The SMB scanner recursively walks the share, filters supported library audio files, and caches them in the library database as a separate operation from connection testing. SMB playback maps `StreamAudioSource` range requests to SMB partial reads, so the audio file is played without copying it into the app.
 
 Disconnected shares, authentication failures, and missing files are recoverable errors and must not crash the UI or the whole service layer.
 

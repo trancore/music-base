@@ -1,14 +1,14 @@
 // ignore_for_file: experimental_member_use
 
-import 'dart:typed_data';
-
 import 'package:dart_smb2/dart_smb2.dart';
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path/path.dart' as p;
 
 import '../../domain/library/library_track.dart';
 import '../../domain/library/smb_service.dart';
 import '../library/smb_settings_repository.dart';
+import 'smb_playback_cache.dart';
 
 class SmbRemoteLocation {
   const SmbRemoteLocation({
@@ -39,16 +39,29 @@ class SmbRemoteLocation {
 }
 
 class SmbPlaybackSourceFactory {
-  SmbPlaybackSourceFactory(this._settingsRepository);
+  SmbPlaybackSourceFactory(
+    this._settingsRepository, {
+    SmbPlaybackCache? playbackCache,
+    bool Function()? usePlaybackCache,
+  }) : _playbackCache = playbackCache ?? const SmbPlaybackCache(),
+       _usePlaybackCache = usePlaybackCache ?? _defaultUsePlaybackCache;
 
   final SmbSettingsRepository _settingsRepository;
+  final SmbPlaybackCache _playbackCache;
+  final bool Function() _usePlaybackCache;
   final Set<SmbStreamAudioSource> _activeSources = {};
 
-  Future<SmbStreamAudioSource> create(LibraryTrack track, {dynamic tag}) async {
+  static bool _defaultUsePlaybackCache() =>
+      defaultTargetPlatform == TargetPlatform.android;
+
+  Future<AudioSource> create(LibraryTrack track, {dynamic tag}) async {
     final location = SmbRemoteLocation.parse(track.sourcePath);
     final configuredSource = await _settingsRepository.loadSource();
     final password = await _settingsRepository.loadPassword();
-    if (location == null || configuredSource == null || password == null) {
+    if (location == null ||
+        configuredSource == null ||
+        password == null ||
+        password.isEmpty) {
       throw const SmbConnectionException(
         'The SMB source is not configured for this track.',
       );
@@ -71,6 +84,17 @@ class SmbPlaybackSourceFactory {
         timeoutSeconds: 30,
       );
       final length = await pool.fileSize(location.path);
+      if (_usePlaybackCache()) {
+        final file = await _playbackCache.materialize(
+          pool: pool,
+          remotePath: location.path,
+          length: length,
+          track: track,
+        );
+        await pool.disconnect();
+        return AudioSource.file(file.path, tag: tag);
+      }
+
       final source = SmbStreamAudioSource(
         pool: pool,
         path: location.path,
@@ -103,6 +127,9 @@ class SmbPlaybackSourceFactory {
   String _contentType(String path) => switch (p.extension(path).toLowerCase()) {
     '.flac' => 'audio/flac',
     '.mp3' => 'audio/mpeg',
+    '.ogg' => 'audio/ogg',
+    '.3gp' => 'audio/3gpp',
+    '.mp4' => 'audio/mp4',
     _ => 'application/octet-stream',
   };
 }
@@ -117,50 +144,55 @@ class SmbStreamAudioSource extends StreamAudioSource {
     required this.onClose,
   });
 
+  static const readChunkBytes = 128 * 1024;
+
   final Smb2Pool pool;
   final String path;
   final int length;
   final String contentType;
   final void Function(SmbStreamAudioSource source) onClose;
   bool _closed = false;
+  Future<void> _readChain = Future<void>.value();
 
   @override
   Future<StreamAudioResponse> request([int? start, int? end]) async {
     if (_closed) throw StateError('SMB audio source is closed.');
     final offset = (start ?? 0).clamp(0, length);
     final requestedEnd = (end ?? length).clamp(offset, length);
-    try {
-      final bytes = await _readRange(offset, requestedEnd);
-      return StreamAudioResponse(
-        sourceLength: length,
-        contentLength: bytes.length,
-        offset: offset,
-        stream: Stream.value(bytes),
-        contentType: contentType,
+    final contentLength = requestedEnd - offset;
+    if (contentLength <= 0) {
+      throw StateError(
+        'Invalid SMB range request at offset $offset for $path.',
       );
-    } on Exception {
-      rethrow;
     }
+    return StreamAudioResponse(
+      sourceLength: length,
+      contentLength: contentLength,
+      offset: offset,
+      stream: _streamRange(offset, requestedEnd),
+      contentType: contentType,
+    );
   }
 
-  Future<Uint8List> _readRange(int start, int end) async {
+  Stream<List<int>> _streamRange(int start, int end) async* {
     var offset = start;
-    const maxChunkSize = 8 * 1024 * 1024;
-    final builder = BytesBuilder(copy: false);
     while (offset < end) {
-      final requestedLength = (end - offset).clamp(1, maxChunkSize);
-      final bytes = await pool.readFileRange(
-        path,
-        offset: offset,
-        length: requestedLength,
+      final readLength = (end - offset).clamp(1, readChunkBytes);
+      final bytes = await _readLocked(
+        () => pool.readFileRange(path, offset: offset, length: readLength),
       );
       if (bytes.isEmpty) {
         throw StateError('SMB returned no data at offset $offset for $path.');
       }
-      builder.add(bytes);
+      yield bytes;
       offset += bytes.length;
     }
-    return builder.takeBytes();
+  }
+
+  Future<T> _readLocked<T>(Future<T> Function() action) {
+    final result = _readChain.then((_) => action());
+    _readChain = result.then((_) {}, onError: (_) {});
+    return result;
   }
 
   Future<void> close() async {

@@ -1,6 +1,6 @@
-# Playback and display
+﻿# Playback and display
 
-Select a FLAC or MP3 file from the library to play it. In addition to local files, tracks on the configured SMB share can be played directly. The current implementation supports play, pause, stop, seeking, previous/next track, volume control, and mute.
+Select a FLAC, MP3, OGG, 3GP, or MP4 file from the library to play it. In addition to local files, tracks on the configured SMB share can be played directly. On Android, SMB tracks are copied to a temporary cache before playback so ExoPlayer can read them reliably. The first play shows a loading state before audio starts; replaying the same track reuses the cache. The current implementation supports play, pause, stop, seeking, previous/next track, volume control, and mute.
 
 Internet radio stations play from the direct audio stream URLs saved on the Radio screen. Live streams have no total duration, so the playback dock shows elapsed time since playback started. Seeking, track navigation, and shuffle are unavailable while a radio station is playing.
 
@@ -20,7 +20,7 @@ On Android, playback continues in the background and exposes play/pause, previou
 
 ## Waveform / spectrum visualizer
 
-During playback, the visualizer displays logarithmically spaced frequency bands. On desktop, it applies a Hann window to a 2048-sample FFT, maps 20 Hz–20 kHz into 128 bands, converts magnitudes to dB, and smooths the result over time. Android FFT data is converted to the same display shape. If analysis or live capture is unavailable, it falls back to a playback-position and animation-based display. Processing stays in memory and does not create recording files.
+During playback, the visualizer displays logarithmically spaced frequency bands. On supported platforms, it applies a Hann window to a 2048-sample FFT, maps 20 Hz–20 kHz into 128 bands, converts magnitudes to dB, and smooths the result over time. Android passes PCM from the playback session through the same pipeline. If analysis or live capture is unavailable, it falls back to a playback-position and animation-based display. Processing stays in memory and does not create recording files.
 
 On desktop, the playback queue appears at the bottom of the sidebar. Select a queued track to start playback from that track. On mobile, playback is centered around the playback dock.
 

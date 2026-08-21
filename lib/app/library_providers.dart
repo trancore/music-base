@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
@@ -74,7 +74,11 @@ class LibraryNotifier extends AsyncNotifier<List<LibraryTrack>> {
   bool isLoadingMore = false;
   bool isRefreshing = false;
   String? refreshWarning;
+  DateTime? lastScanCompletedAt;
+  int? lastScanTrackCount;
+  String? lastScanTargetPath;
   int _queryGeneration = 0;
+  int _scanGeneration = 0;
 
   @override
   Future<List<LibraryTrack>> build() async {
@@ -198,44 +202,59 @@ class LibraryNotifier extends AsyncNotifier<List<LibraryTrack>> {
   Future<void> scanDirectory(String path) async {
     sourcePath = path;
     await _scanWithoutHidingCache(() async {
-      await _repository.scanAndCache(path);
+      final tracks = await _repository.scanAndCache(path);
       ref.invalidate(libraryArtworkProvider);
       activeSourcePath = path;
+      lastScanTargetPath = path;
+      lastScanTrackCount = tracks.length;
+      lastScanCompletedAt = DateTime.now();
     });
+    await _refreshGroupsAfterScan();
   }
 
   Future<void> scanSmb() async {
     final source = await ref.read(smbSourceProvider.future);
-    if (source == null) return;
+    if (source == null) {
+      refreshWarning = 'SMB library is not configured.';
+      return;
+    }
     final password =
         await ref.read(smbSettingsRepositoryProvider).loadPassword() ?? '';
-    final path = 'smb://${source.host}/${source.share}';
+    final path = source.librarySourceKey;
     sourcePath = path;
+    lastScanTargetPath = source.displayPath;
     await _scanWithoutHidingCache(() async {
-      await _repository.scanSmbAndCache(source, password);
+      final tracks = await _repository.scanSmbAndCache(source, password);
       ref.invalidate(libraryArtworkProvider);
       activeSourcePath = path;
+      lastScanTrackCount = tracks.length;
+      lastScanCompletedAt = DateTime.now();
     });
+    await _refreshGroupsAfterScan();
   }
 
   Future<void> _scanWithoutHidingCache(Future<void> Function() scan) async {
-    if (isRefreshing) return;
+    final generation = ++_scanGeneration;
     final cached = state.valueOrNull;
     isRefreshing = true;
     refreshWarning = null;
     if (cached != null) state = AsyncData(cached);
     try {
       await scan();
+      if (generation != _scanGeneration) return;
       await _refreshVisiblePage();
     } catch (error, stackTrace) {
+      if (generation != _scanGeneration) return;
       refreshWarning = 'Library scan failed: $error';
       state = cached != null
           ? AsyncData(cached)
           : AsyncError(error, stackTrace);
     } finally {
-      isRefreshing = false;
-      if (state case AsyncData(value: final visible)) {
-        state = AsyncData(visible);
+      if (generation == _scanGeneration) {
+        isRefreshing = false;
+        if (state case AsyncData(value: final visible)) {
+          state = AsyncData(visible);
+        }
       }
     }
   }
@@ -250,9 +269,24 @@ class LibraryNotifier extends AsyncNotifier<List<LibraryTrack>> {
     }
   }
 
+  /// Restores the last local library when SMB settings are cleared.
+  Future<void> restoreLocalSourceAfterSmbClear() async {
+    if (sourcePath?.startsWith('smb://') != true) return;
+    final local = await _repository.loadLastLocalSourcePath();
+    if (local == null || local.isEmpty) return;
+    sourcePath = local;
+    activeSourcePath = local;
+    await _repository.saveSourcePath(local);
+    await _refreshVisiblePage();
+  }
+
   Future<void> refreshInBackground() async {
     final primary = sourcePath;
     if (primary == null || primary.isEmpty || isRefreshing) return;
+    // SMB rescans walk the share over the network and can take a long time.
+    // When cached tracks are already available, defer refresh to manual scans.
+    if (primary.startsWith('smb://') && totalCount > 0) return;
+    final generation = ++_scanGeneration;
     isRefreshing = true;
     refreshWarning = null;
     final cached = state.valueOrNull;
@@ -263,41 +297,50 @@ class LibraryNotifier extends AsyncNotifier<List<LibraryTrack>> {
         if (source == null) throw StateError('SMB library is not configured.');
         final password =
             await ref.read(smbSettingsRepositoryProvider).loadPassword() ?? '';
-        await _repository.scanSmbAndCache(source, password);
+        lastScanTargetPath = source.displayPath;
+        final tracks = await _repository
+            .scanSmbAndCache(source, password)
+            .timeout(const Duration(minutes: 5));
         ref.invalidate(libraryArtworkProvider);
         activeSourcePath = primary;
+        lastScanTrackCount = tracks.length;
+        lastScanCompletedAt = DateTime.now();
       } else {
-        await _repository.scanAndCache(primary);
+        final tracks = await _repository.scanAndCache(primary);
         ref.invalidate(libraryArtworkProvider);
         activeSourcePath = primary;
+        lastScanTargetPath = primary;
+        lastScanTrackCount = tracks.length;
+        lastScanCompletedAt = DateTime.now();
       }
+      if (generation != _scanGeneration) return;
       await _refreshVisiblePage();
-    } on Object {
-      if (primary.startsWith('smb://')) {
-        final local = await _repository.loadLastLocalSourcePath();
-        if (local != null && local.isNotEmpty) {
-          try {
-            await _repository.scanFallbackLocal(local);
-            ref.invalidate(libraryArtworkProvider);
-            activeSourcePath = local;
-            refreshWarning =
-                'SMB library is unavailable. Using the local library.';
-            await _refreshVisiblePage();
-            return;
-          } on Object {
-            // Report the common terminal state below.
-          }
-        }
-      }
-      refreshWarning = 'Library not found.';
+      await _refreshGroupsAfterScan();
+    } on Object catch (error) {
+      if (generation != _scanGeneration) return;
+      activeSourcePath = primary;
+      refreshWarning = primary.startsWith('smb://')
+          ? 'SMB library refresh failed: $error'
+          : 'Library not found.';
       state = cached != null
           ? AsyncData(cached)
           : AsyncError(StateError(refreshWarning!), StackTrace.current);
     } finally {
-      isRefreshing = false;
-      if (state case AsyncData(value: final visible)) {
-        state = AsyncData(visible);
+      if (generation == _scanGeneration) {
+        isRefreshing = false;
+        if (state case AsyncData(value: final visible)) {
+          state = AsyncData(visible);
+        }
       }
     }
+  }
+
+  Future<void> _refreshGroupsAfterScan() async {
+    if (refreshWarning != null) return;
+    final groupsNotifier = ref.read(libraryGroupsProvider.notifier);
+    await groupsNotifier.setQuery(
+      kind: groupsNotifier.kind,
+      search: groupsNotifier.search,
+    );
   }
 }

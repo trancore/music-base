@@ -1,4 +1,4 @@
-import 'package:dart_smb2/dart_smb2.dart';
+﻿import 'package:dart_smb2/dart_smb2.dart';
 
 import '../../domain/library/smb_service.dart';
 import '../../domain/library/smb_source.dart';
@@ -19,7 +19,7 @@ class DartSmb2Service implements SmbService {
         workers: 1,
         timeoutSeconds: 30,
       );
-      await pool.listDirectory(source.subfolder);
+      await pool.listDirectory(source.normalizedSubfolder);
     } on Smb2Exception catch (error) {
       throw SmbConnectionException(_messageFor(error));
     } on Exception catch (error) {

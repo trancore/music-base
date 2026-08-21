@@ -31,7 +31,6 @@ class _PlaybackVisualizerState extends State<PlaybackVisualizer>
   List<double>? _smoothedSpectrum;
   String? _sourcePath;
   int? _sessionId;
-  bool _spectrumStarted = false;
   StreamSubscription<List<double>>? _spectrumSubscription;
 
   late final AnimationController _controller = AnimationController(
@@ -95,17 +94,26 @@ class _PlaybackVisualizerState extends State<PlaybackVisualizer>
   }
 
   void _syncRealtimeSpectrum() {
+    if (!widget.snapshot.isPlaying || widget.snapshot.currentTrack == null) {
+      return;
+    }
     final sessionId = widget.snapshot.audioSessionId;
-    if (_spectrumStarted && sessionId == _sessionId) return;
+    if (sessionId == null || sessionId <= 0) return;
+    if (_sessionId == sessionId) return;
     _sessionId = sessionId;
-    _spectrumStarted = true;
-    unawaited(widget.realtimeSpectrum.start(audioSessionId: sessionId));
+    unawaited(_restartSpectrum(sessionId));
+  }
+
+  Future<void> _restartSpectrum(int sessionId) async {
+    await widget.realtimeSpectrum.stop();
+    await widget.realtimeSpectrum.start(audioSessionId: sessionId);
   }
 
   void _loadWaveformIfNeeded() {
     final track = widget.snapshot.currentTrack;
     if (track == null || track.sourcePath == _sourcePath) return;
     _sourcePath = track.sourcePath;
+    _sessionId = null;
     _waveform = null;
     widget.audioAnalysis
         .waveformFor(track)

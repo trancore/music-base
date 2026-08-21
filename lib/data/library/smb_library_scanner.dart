@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:dart_smb2/dart_smb2.dart';
 import 'package:path/path.dart' as p;
 
+import '../../domain/library/library_audio_formats.dart';
 import '../../domain/library/library_errors.dart';
 import '../../domain/library/library_metadata.dart';
 import '../../domain/library/library_track.dart';
@@ -16,8 +17,6 @@ class SmbLibraryScanner {
   });
 
   final SmbFlacMetadataReader flacMetadataReader;
-
-  static const supportedExtensions = {'.flac', '.mp3'};
 
   Future<List<LibraryTrack>> scan(
     SmbSource source,
@@ -37,7 +36,7 @@ class SmbLibraryScanner {
       final tracks = <LibraryTrack>[];
       await _scanDirectory(
         pool,
-        _normalize(source.subfolder),
+        source.normalizedSubfolder,
         source,
         tracks,
         cachedTracks,
@@ -69,8 +68,7 @@ class SmbLibraryScanner {
       final remotePath = _join(directory, entry.name);
       if (entry.isDirectory) {
         await _scanDirectory(pool, remotePath, source, tracks, cachedTracks);
-      } else if (entry.isFile &&
-          supportedExtensions.contains(p.extension(entry.name).toLowerCase())) {
+      } else if (entry.isFile && isSupportedLibraryExtension(entry.name)) {
         final sourcePath = Uri(
           scheme: 'smb',
           host: source.host,
@@ -123,9 +121,6 @@ class SmbLibraryScanner {
   void _record(List<LibraryTrack> tracks, LibraryTrack track) {
     tracks.add(track);
   }
-
-  String _normalize(String path) =>
-      path.replaceAll('\\', '/').replaceAll(RegExp(r'^/+|/+$'), '');
 
   String _join(String directory, String name) =>
       directory.isEmpty ? name : '$directory/$name';

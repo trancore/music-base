@@ -5,7 +5,8 @@ class _CompactPlaybackDock extends StatelessWidget {
     required this.playback,
     required this.title,
     required this.subtitle,
-    required this.artwork,
+    required this.track,
+    required this.errorMessage,
     required this.isPlaying,
     required this.isRadio,
     required this.audioAnalysis,
@@ -15,7 +16,8 @@ class _CompactPlaybackDock extends StatelessWidget {
   final PlaybackService playback;
   final String title;
   final String subtitle;
-  final Uint8List? artwork;
+  final LibraryTrack? track;
+  final String? errorMessage;
   final bool isPlaying;
   final bool isRadio;
   final AudioAnalysisService audioAnalysis;
@@ -43,8 +45,8 @@ class _CompactPlaybackDock extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
             child: Row(
               children: [
-                _ArtworkTile(
-                  bytes: artwork,
+                _PlaybackArtworkTile(
+                  track: track,
                   size: 40,
                   fallback: isRadio ? Icons.radio : Icons.music_note,
                 ),
@@ -66,6 +68,18 @@ class _CompactPlaybackDock extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
+                      if (errorMessage case final error?) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          error,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -88,7 +102,7 @@ class _CompactPlaybackDock extends StatelessWidget {
   }
 }
 
-class _MobileNowPlayingSheet extends StatelessWidget {
+class _MobileNowPlayingSheet extends ConsumerWidget {
   const _MobileNowPlayingSheet({
     required this.playback,
     required this.audioAnalysis,
@@ -100,7 +114,7 @@ class _MobileNowPlayingSheet extends StatelessWidget {
   final RealtimeSpectrumService realtimeSpectrum;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return AnimatedBuilder(
       animation: playback,
       builder: (context, _) {
@@ -120,8 +134,8 @@ class _MobileNowPlayingSheet extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _ArtworkTile(
-                  bytes: track?.artwork,
+                _PlaybackArtworkTile(
+                  track: station == null ? track : null,
                   size: artworkSize,
                   fallback: station == null ? Icons.music_note : Icons.radio,
                 ),
@@ -146,6 +160,15 @@ class _MobileNowPlayingSheet extends StatelessWidget {
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ),
+                if (snapshot.errorMessage case final error?) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    error,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 if (track != null)
                   Padding(
@@ -161,6 +184,12 @@ class _MobileNowPlayingSheet extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    if (station == null)
+                      IconButton(
+                        tooltip: 'Previous',
+                        onPressed: playback.skipPrevious,
+                        icon: const Icon(Icons.skip_previous),
+                      ),
                     IconButton.filled(
                       tooltip: snapshot.isPlaying ? 'Pause' : 'Play',
                       onPressed: snapshot.isPlaying
@@ -170,7 +199,13 @@ class _MobileNowPlayingSheet extends StatelessWidget {
                         snapshot.isPlaying ? Icons.pause : Icons.play_arrow,
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    if (station == null)
+                      IconButton(
+                        tooltip: 'Next',
+                        onPressed: playback.skipNext,
+                        icon: const Icon(Icons.skip_next),
+                      ),
+                    const SizedBox(width: 8),
                     IconButton(
                       tooltip: 'Stop',
                       onPressed: playback.stop,
@@ -258,7 +293,7 @@ class _MobileQueue extends StatelessWidget {
   }
 }
 
-class _QueueTrackTile extends StatelessWidget {
+class _QueueTrackTile extends ConsumerWidget {
   const _QueueTrackTile({
     required this.track,
     required this.index,
@@ -272,18 +307,19 @@ class _QueueTrackTile extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) => ListTile(
+  Widget build(BuildContext context, WidgetRef ref) => ListTile(
     dense: true,
     contentPadding: EdgeInsets.zero,
     leading: SizedBox(
       width: 40,
       height: 40,
-      child: track.artwork == null
-          ? CircleAvatar(child: Text('${index + 1}'))
-          : ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.memory(track.artwork!, fit: BoxFit.cover),
-            ),
+      child: _PlaybackArtworkTile(
+        track: track,
+        size: 40,
+        fallback: Icons.music_note,
+        borderRadius: 8,
+        showIndexFallback: index + 1,
+      ),
     ),
     title: Text(
       track.title ?? track.sourcePath,

@@ -40,17 +40,20 @@ class _ArtworkTile extends StatelessWidget {
     required this.bytes,
     required this.size,
     required this.fallback,
+    this.borderRadius,
   });
 
   final Uint8List? bytes;
   final double size;
   final IconData fallback;
+  final double? borderRadius;
 
   @override
   Widget build(BuildContext context) {
     final image = bytes;
+    final radius = borderRadius ?? size * 0.22;
     return ClipRRect(
-      borderRadius: BorderRadius.circular(size * 0.22),
+      borderRadius: BorderRadius.circular(radius),
       child: image == null
           ? Container(
               width: size,
@@ -70,6 +73,63 @@ class _ArtworkTile extends StatelessWidget {
                 gaplessPlayback: true,
               ),
             ),
+    );
+  }
+}
+
+class _PlaybackArtworkTile extends ConsumerWidget {
+  const _PlaybackArtworkTile({
+    required this.track,
+    required this.size,
+    required this.fallback,
+    this.borderRadius,
+    this.showIndexFallback,
+  });
+
+  final LibraryTrack? track;
+  final double size;
+  final IconData fallback;
+  final double? borderRadius;
+  final int? showIndexFallback;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final current = track;
+    if (current == null) {
+      return _ArtworkTile(
+        bytes: null,
+        size: size,
+        fallback: fallback,
+        borderRadius: borderRadius,
+      );
+    }
+
+    final legacy = current.artwork;
+    if (current.cacheId == null) {
+      return _buildTile(context, legacy);
+    }
+
+    final artwork = ref.watch(libraryArtworkProvider(current.cacheId!));
+    return artwork.when(
+      skipLoadingOnReload: true,
+      loading: () => _buildTile(context, legacy),
+      error: (_, _) => _buildTile(context, legacy),
+      data: (bytes) => _buildTile(
+        context,
+        bytes == null || bytes.isEmpty ? legacy : Uint8List.fromList(bytes),
+      ),
+    );
+  }
+
+  Widget _buildTile(BuildContext context, Uint8List? bytes) {
+    if (bytes == null && showIndexFallback != null) {
+      return CircleAvatar(child: Text('$showIndexFallback'));
+    }
+    return _ArtworkTile(
+      bytes: bytes,
+      size: size,
+      fallback: fallback,
+      borderRadius: borderRadius,
     );
   }
 }
