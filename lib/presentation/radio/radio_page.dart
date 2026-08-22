@@ -92,38 +92,47 @@ class RadioPage extends ConsumerWidget {
                       alignment: Alignment.centerRight,
                       child: SizedBox(
                         width: 220,
-                        child: DropdownButtonFormField<RadioStationSort>(
-                          initialValue: sort,
-                          isExpanded: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Sort stations',
-                            prefixIcon: Icon(Icons.sort),
-                          ),
-                          items: const [
-                            DropdownMenuItem(
-                              value: RadioStationSort.manual,
-                              child: Text('Manual order'),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'Sort stations',
+                              style: Theme.of(context).textTheme.bodySmall,
                             ),
-                            DropdownMenuItem(
-                              value: RadioStationSort.nameAscending,
-                              child: Text('Name (A–Z)'),
-                            ),
-                            DropdownMenuItem(
-                              value: RadioStationSort.nameDescending,
-                              child: Text('Name (Z–A)'),
-                            ),
-                            DropdownMenuItem(
-                              value: RadioStationSort.genre,
-                              child: Text('Genre'),
+                            const SizedBox(height: 4),
+                            DropdownButtonFormField<RadioStationSort>(
+                              initialValue: sort,
+                              isExpanded: true,
+                              decoration: const InputDecoration(
+                                prefixIcon: Icon(Icons.sort),
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: RadioStationSort.manual,
+                                  child: Text('Manual order'),
+                                ),
+                                DropdownMenuItem(
+                                  value: RadioStationSort.nameAscending,
+                                  child: Text('Name (A–Z)'),
+                                ),
+                                DropdownMenuItem(
+                                  value: RadioStationSort.nameDescending,
+                                  child: Text('Name (Z–A)'),
+                                ),
+                                DropdownMenuItem(
+                                  value: RadioStationSort.genre,
+                                  child: Text('Genre'),
+                                ),
+                              ],
+                              onChanged: (value) {
+                                if (value != null) {
+                                  ref
+                                      .read(appSettingsProvider.notifier)
+                                      .setRadioStationSort(value);
+                                }
+                              },
                             ),
                           ],
-                          onChanged: (value) {
-                            if (value != null) {
-                              ref
-                                  .read(appSettingsProvider.notifier)
-                                  .setRadioStationSort(value);
-                            }
-                          },
                         ),
                       ),
                     ),
