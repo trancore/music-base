@@ -1,7 +1,7 @@
 ﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Keep [kAppVersion] in sync with the `version` field in `pubspec.yaml`.
-const kAppVersion = '1.2.0';
+const kAppVersion = '1.3.0';
 const kAppName = 'music_base';
 
 class AppVersionInfo {

@@ -33,6 +33,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   bool _sortAscending = true;
   Timer? _searchDebounce;
   _LibraryViewMode _viewMode = _LibraryViewMode.songs;
+  bool _groupListMode = false;
   LibraryGroup? _selectedGroup;
   DateTime? _readyBannerHiddenSinceScanAt;
 
@@ -108,35 +109,56 @@ class _HomePageState extends ConsumerState<HomePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: SegmentedButton<_LibraryViewMode>(
-                        segments: const [
-                          ButtonSegment(
-                            value: _LibraryViewMode.songs,
-                            icon: Icon(Icons.music_note_outlined),
-                            label: Text('Songs'),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: SegmentedButton<_LibraryViewMode>(
+                              segments: const [
+                                ButtonSegment(
+                                  value: _LibraryViewMode.songs,
+                                  icon: Icon(Icons.music_note_outlined),
+                                  label: Text('Songs'),
+                                ),
+                                ButtonSegment(
+                                  value: _LibraryViewMode.albums,
+                                  icon: Icon(Icons.album_outlined),
+                                  label: Text('Albums'),
+                                ),
+                                ButtonSegment(
+                                  value: _LibraryViewMode.artists,
+                                  icon: Icon(Icons.person_outline),
+                                  label: Text('Artists'),
+                                ),
+                              ],
+                              selected: {_viewMode},
+                              onSelectionChanged: (selection) {
+                                _changeView(
+                                  selection.single,
+                                  libraryNotifier,
+                                  groupNotifier,
+                                );
+                              },
+                            ),
                           ),
-                          ButtonSegment(
-                            value: _LibraryViewMode.albums,
-                            icon: Icon(Icons.album_outlined),
-                            label: Text('Albums'),
-                          ),
-                          ButtonSegment(
-                            value: _LibraryViewMode.artists,
-                            icon: Icon(Icons.person_outline),
-                            label: Text('Artists'),
+                        ),
+                        if (_selectedGroup == null &&
+                            _viewMode != _LibraryViewMode.songs) ...[
+                          const SizedBox(width: 8),
+                          IconButton(
+                            tooltip: _groupListMode ? 'Grid view' : 'List view',
+                            onPressed: () => setState(
+                              () => _groupListMode = !_groupListMode,
+                            ),
+                            icon: Icon(
+                              _groupListMode
+                                  ? Icons.grid_view
+                                  : Icons.view_list,
+                            ),
                           ),
                         ],
-                        selected: {_viewMode},
-                        onSelectionChanged: (selection) {
-                          _changeView(
-                            selection.single,
-                            libraryNotifier,
-                            groupNotifier,
-                          );
-                        },
-                      ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     if (_selectedGroup case final selectedGroup?) ...[
@@ -300,6 +322,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                                 error: groups.error,
                                 availableHeight: contentConstraints.maxHeight,
                                 expandToFill: false,
+                                listMode: _groupListMode,
                                 onNearEnd: groupNotifier.loadNextPage,
                                 onOpen: (group) =>
                                     _openGroup(group, libraryNotifier),
@@ -536,6 +559,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                 error: groups.error,
                 availableHeight: 0,
                 expandToFill: true,
+                listMode: _groupListMode,
                 onNearEnd: groupNotifier.loadNextPage,
                 onOpen: (group) => _openGroup(group, libraryNotifier),
                 onPlay: (group) => _playGroup(group, playback),

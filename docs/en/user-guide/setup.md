@@ -2,6 +2,10 @@
 
 Select **User guide** under **Help** on the Settings screen to open this documentation in the default browser. An internet connection is required.
 
+## Language
+
+Choose **Language** under **Appearance** in Settings. **System** follows the operating system language; **English** and **日本語** select a language explicitly. Short navigation labels and product-oriented headings such as **Library**, **Playlists**, and **Settings** remain in English for a consistent interface.
+
 ## Music library location
 
 Configure the music library with a local directory or an SMB share provided by the user or administrator. The exact path depends on the environment.

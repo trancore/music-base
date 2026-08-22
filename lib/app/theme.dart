@@ -4,6 +4,11 @@ const defaultAccentColor = Color(0xFF8C7BFF);
 
 ThemeData buildTheme(Brightness brightness, Color accentColor) {
   final isDark = brightness == Brightness.dark;
+  final clickableCursor = WidgetStateProperty.resolveWith<MouseCursor>(
+    (states) => states.contains(WidgetState.disabled)
+        ? SystemMouseCursors.basic
+        : SystemMouseCursors.click,
+  );
   final scheme = ColorScheme.fromSeed(
     seedColor: accentColor,
     brightness: brightness,
@@ -60,6 +65,25 @@ ThemeData buildTheme(Brightness brightness, Color accentColor) {
         borderSide: BorderSide(color: scheme.primary, width: 2),
       ),
     ),
+    iconButtonTheme: IconButtonThemeData(
+      style: ButtonStyle(mouseCursor: clickableCursor),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: ButtonStyle(mouseCursor: clickableCursor),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: ButtonStyle(mouseCursor: clickableCursor),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: ButtonStyle(mouseCursor: clickableCursor),
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ButtonStyle(mouseCursor: clickableCursor),
+    ),
+    listTileTheme: ListTileThemeData(mouseCursor: clickableCursor),
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: ButtonStyle(mouseCursor: clickableCursor),
+    ),
     navigationRailTheme: NavigationRailThemeData(
       backgroundColor: isDark ? const Color(0xFF111217) : Colors.white,
       indicatorColor: scheme.primary.withValues(alpha: 0.18),
@@ -71,7 +95,6 @@ ThemeData buildTheme(Brightness brightness, Color accentColor) {
     ),
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: isDark ? const Color(0xFF111217) : Colors.white,
-      height: 64,
       indicatorColor: scheme.primary.withValues(alpha: 0.18),
       indicatorShape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),

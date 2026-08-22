@@ -73,18 +73,18 @@ class AppShell extends ConsumerWidget {
                   compact: true,
                 ),
               Expanded(child: child),
-              NavigationBar(
-                selectedIndex: selectedIndex < 0 ? 0 : selectedIndex,
-                onDestinationSelected: (index) => context.go(paths[index]),
-                destinations: [
-                  for (final destination in destinations)
-                    NavigationDestination(
-                      icon: Icon(destination.icon),
-                      selectedIcon: Icon(destination.selectedIcon),
-                      label: destination.label,
-                    ),
-                ],
-              ),
+            ],
+          ),
+          bottomNavigationBar: NavigationBar(
+            selectedIndex: selectedIndex < 0 ? 0 : selectedIndex,
+            onDestinationSelected: (index) => context.go(paths[index]),
+            destinations: [
+              for (final destination in destinations)
+                NavigationDestination(
+                  icon: Icon(destination.icon),
+                  selectedIcon: Icon(destination.selectedIcon),
+                  label: destination.label,
+                ),
             ],
           ),
         ),

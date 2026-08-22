@@ -64,6 +64,10 @@ abstract interface class PlaybackService extends Listenable {
 
   Future<void> stop();
 
+  Duration? get sleepTimerRemaining;
+
+  void setSleepTimer(Duration? duration);
+
   Future<void> seek(Duration position);
 
   Future<void> setVolume(double volume);

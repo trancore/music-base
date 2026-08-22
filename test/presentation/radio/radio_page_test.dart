@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:music_base/app/playback_providers.dart';
 import 'package:music_base/app/radio_providers.dart';
+import 'package:music_base/app/providers.dart';
 import 'package:music_base/data/playback/just_audio_playback_service.dart';
 import 'package:music_base/domain/radio/internet_radio_station.dart';
 import 'package:music_base/domain/radio/radio_browser_service.dart';
@@ -17,10 +19,13 @@ void main() {
   testWidgets('groups genre sorting by the first tag with Other last', (
     tester,
   ) async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
     final playback = JustAudioPlaybackService(AudioPlayer());
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          sharedPreferencesProvider.overrideWithValue(preferences),
           radioStationRepositoryProvider.overrideWithValue(
             const _FakeRadioStationRepository([
               InternetRadioStation(
@@ -81,12 +86,15 @@ void main() {
   testWidgets('keeps a Radio Browser station when playback fails', (
     tester,
   ) async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
     final repository = _RecordingRadioStationRepository();
     final streamTester = _FailingRadioStreamTester();
     final playback = _FailingRadioPlaybackService();
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          sharedPreferencesProvider.overrideWithValue(preferences),
           radioStationRepositoryProvider.overrideWithValue(repository),
           radioBrowserServiceProvider.overrideWithValue(
             const _SingleRadioBrowserService(),
@@ -119,6 +127,8 @@ void main() {
   });
 
   testWidgets('reports playback failure from a saved station', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
     const station = InternetRadioStation(
       id: 'offline',
       name: 'Offline Radio',
@@ -128,6 +138,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          sharedPreferencesProvider.overrideWithValue(preferences),
           radioStationRepositoryProvider.overrideWithValue(
             const _FakeRadioStationRepository([station]),
           ),
