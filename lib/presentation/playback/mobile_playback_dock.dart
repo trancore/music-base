@@ -212,6 +212,14 @@ class _MobileNowPlayingSheet extends ConsumerWidget {
                       icon: const Icon(Icons.stop),
                     ),
                     IconButton(
+                      tooltip: 'Sleep timer',
+                      onPressed: () => _showSleepTimerDialog(context, playback),
+                      color: playback.sleepTimerRemaining == null
+                          ? null
+                          : Theme.of(context).colorScheme.primary,
+                      icon: const Icon(Icons.bedtime_outlined),
+                    ),
+                    IconButton(
                       tooltip: snapshot.isMuted ? 'Unmute' : 'Mute',
                       onPressed: playback.toggleMute,
                       icon: Icon(

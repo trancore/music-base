@@ -8,6 +8,7 @@ class _LibraryGroupGrid extends StatelessWidget {
     required this.error,
     required this.availableHeight,
     required this.expandToFill,
+    required this.listMode,
     required this.onNearEnd,
     required this.onOpen,
     required this.onPlay,
@@ -19,6 +20,7 @@ class _LibraryGroupGrid extends StatelessWidget {
   final Object? error;
   final double availableHeight;
   final bool expandToFill;
+  final bool listMode;
   final VoidCallback onNearEnd;
   final ValueChanged<LibraryGroup> onOpen;
   final ValueChanged<LibraryGroup> onPlay;
@@ -47,62 +49,98 @@ class _LibraryGroupGrid extends StatelessWidget {
         ),
       );
     }
-    final grid = GridView.builder(
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 240,
-        mainAxisExtent: 250,
-        crossAxisSpacing: 14,
-        mainAxisSpacing: 14,
-      ),
-      itemCount: groups.length,
-      itemBuilder: (context, index) {
-        if (index >= groups.length - 20) onNearEnd();
-        final group = groups[index];
-        return Card(
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: () => onOpen(group),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(child: _GroupArtwork(trackId: group.artworkTrackId)),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
-                  child: Row(
+    final groupsView = listMode
+        ? ListView.builder(
+            itemCount: groups.length,
+            itemBuilder: (context, index) {
+              if (index >= groups.length - 20) onNearEnd();
+              final group = groups[index];
+              return Card(
+                clipBehavior: Clip.antiAlias,
+                margin: const EdgeInsets.only(bottom: 10),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.fromLTRB(10, 6, 8, 6),
+                  leading: SizedBox(
+                    width: 56,
+                    height: 56,
+                    child: _GroupArtwork(trackId: group.artworkTrackId),
+                  ),
+                  title: Text(
+                    group.displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text('${group.trackCount} songs'),
+                  trailing: IconButton(
+                    tooltip: 'Play',
+                    onPressed: () => onPlay(group),
+                    icon: const Icon(Icons.play_arrow),
+                  ),
+                  onTap: () => onOpen(group),
+                ),
+              );
+            },
+          )
+        : GridView.builder(
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 240,
+              mainAxisExtent: 250,
+              crossAxisSpacing: 14,
+              mainAxisSpacing: 14,
+            ),
+            itemCount: groups.length,
+            itemBuilder: (context, index) {
+              if (index >= groups.length - 20) onNearEnd();
+              final group = groups[index];
+              return Card(
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () => onOpen(group),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: _GroupArtwork(trackId: group.artworkTrackId),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
+                        child: Row(
                           children: [
-                            Text(
-                              group.displayName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    group.displayName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${group.trackCount} songs',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
+                                  ),
+                                ],
                               ),
                             ),
-                            Text(
-                              '${group.trackCount} songs',
-                              style: Theme.of(context).textTheme.bodySmall,
+                            IconButton(
+                              tooltip: 'Play',
+                              onPressed: () => onPlay(group),
+                              icon: const Icon(Icons.play_arrow),
                             ),
                           ],
                         ),
                       ),
-                      IconButton(
-                        tooltip: 'Play',
-                        onPressed: () => onPlay(group),
-                        icon: const Icon(Icons.play_arrow),
-                      ),
                     ],
                   ),
                 ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
+              );
+            },
+          );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -116,9 +154,9 @@ class _LibraryGroupGrid extends StatelessWidget {
           ),
         ),
         if (expandToFill)
-          Expanded(child: grid)
+          Expanded(child: groupsView)
         else
-          SizedBox(height: availableHeight * 0.78, child: grid),
+          SizedBox(height: availableHeight, child: groupsView),
       ],
     );
   }

@@ -6,6 +6,7 @@ import 'package:just_audio_background/just_audio_background.dart';
 
 import '../../domain/library/library_track.dart';
 import '../../domain/playback/playback_service.dart';
+import '../../domain/playback/sleep_timer.dart';
 import '../../domain/radio/internet_radio_station.dart';
 import '../../domain/library/smb_service.dart';
 import 'playback_audio_source_resolver.dart';
@@ -14,8 +15,12 @@ import 'smb_audio_source.dart';
 class JustAudioPlaybackService extends ChangeNotifier
     implements PlaybackService {
   static const _radioLoadTimeout = Duration(seconds: 12);
+  static const _maximumPlayerVolume = 0.6;
 
   JustAudioPlaybackService(this._player, {this.remoteSourceFactory}) {
+    unawaited(_player.setVolume(_maximumPlayerVolume));
+    _sleepTimer = SleepTimerController(onExpired: stop);
+    _sleepTimer.addListener(notifyListeners);
     _subscriptions = [
       _player.playerStateStream.listen((state) {
         if (_currentRadioStation != null) {
@@ -60,6 +65,7 @@ class JustAudioPlaybackService extends ChangeNotifier
   PlaybackQueueSource? _lazyQueue;
   InternetRadioStation? _currentRadioStation;
   Timer? _radioClockTimer;
+  late final SleepTimerController _sleepTimer;
   Duration _radioElapsed = Duration.zero;
   int _currentIndex = 0;
   double _volumeBeforeMute = 1;
@@ -67,6 +73,14 @@ class JustAudioPlaybackService extends ChangeNotifier
 
   @override
   PlaybackSnapshot get snapshot => _snapshot;
+
+  @override
+  Duration? get sleepTimerRemaining => _sleepTimer.remaining;
+
+  @override
+  void setSleepTimer(Duration? duration) {
+    _sleepTimer.setTimer(duration);
+  }
 
   @override
   Future<void> playTrack(LibraryTrack track) async {
@@ -226,6 +240,7 @@ class JustAudioPlaybackService extends ChangeNotifier
   Future<void> stop() async {
     await _player.stop();
     _stopRadioClock();
+    _sleepTimer.setTimer(null);
     if (_currentRadioStation != null) {
       _radioElapsed = Duration.zero;
       _update(position: Duration.zero, isPlaying: false, isLoading: false);
@@ -238,7 +253,7 @@ class JustAudioPlaybackService extends ChangeNotifier
   @override
   Future<void> setVolume(double volume) async {
     final clampedVolume = volume.clamp(0, 1).toDouble();
-    await _player.setVolume(clampedVolume);
+    await _player.setVolume(clampedVolume * _maximumPlayerVolume);
     _update(volume: clampedVolume);
   }
 
@@ -316,6 +331,7 @@ class JustAudioPlaybackService extends ChangeNotifier
     }
     _sourceResolver.dispose();
     _stopRadioClock();
+    _sleepTimer.dispose();
     _player.dispose();
     super.dispose();
   }

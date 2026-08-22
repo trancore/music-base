@@ -45,9 +45,15 @@ class PlaylistsPage extends ConsumerWidget {
     final playlists = ref.watch(playlistProvider);
     final folders = ref.watch(playlistFoldersProvider);
     final notifier = ref.read(playlistProvider.notifier);
+    final isCompact = MediaQuery.sizeOf(context).width < 700;
+    final playback = isCompact ? ref.watch(playbackServiceProvider) : null;
+    final hasActivePlayback =
+        playback?.snapshot.currentTrack != null ||
+        playback?.snapshot.currentRadioStation != null;
 
     return Scaffold(
       appBar: AppBar(
+        primary: !(isCompact && hasActivePlayback),
         title: const Text('Playlists'),
         actions: [
           IconButton(
@@ -73,7 +79,7 @@ class PlaylistsPage extends ConsumerWidget {
         ],
       ),
       body: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
         child: playlists.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, stackTrace) => Center(child: Text('$error')),

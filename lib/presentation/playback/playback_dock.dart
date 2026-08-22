@@ -1,4 +1,4 @@
-﻿import 'dart:typed_data';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -187,86 +187,150 @@ class PlaybackDock extends StatelessWidget {
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),
-            Row(
-              children: [
-                if (!isRadio)
-                  IconButton(
-                    tooltip: 'Previous',
-                    onPressed: playback.skipPrevious,
-                    icon: const Icon(Icons.skip_previous),
-                  ),
-                Text(
-                  _formatDuration(position),
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                const Spacer(),
-                if (compact)
-                  IconButton(
-                    tooltip: snapshot.isPlaying ? 'Pause' : 'Play',
-                    onPressed: snapshot.isPlaying
-                        ? playback.pause
-                        : playback.resume,
-                    icon: Icon(
-                      snapshot.isPlaying ? Icons.pause : Icons.play_arrow,
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  if (!isRadio)
+                    IconButton(
+                      tooltip: 'Previous',
+                      onPressed: playback.skipPrevious,
+                      icon: const Icon(Icons.skip_previous),
                     ),
+                  Text(
+                    _formatDuration(position),
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
-                IconButton(
-                  tooltip: 'Stop',
-                  onPressed: playback.stop,
-                  icon: const Icon(Icons.stop),
-                ),
-                if (!isRadio)
-                  IconButton(
-                    tooltip: 'Next',
-                    onPressed: playback.skipNext,
-                    icon: const Icon(Icons.skip_next),
-                  ),
-                if (!isRadio)
-                  IconButton(
-                    tooltip: 'Shuffle',
-                    onPressed: playback.toggleShuffle,
-                    color: snapshot.shuffleEnabled
-                        ? Theme.of(context).colorScheme.primary
-                        : null,
-                    icon: const Icon(Icons.shuffle),
-                  ),
-                if (!isRadio)
-                  IconButton(
-                    tooltip: 'Repeat',
-                    onPressed: playback.toggleRepeat,
-                    color: snapshot.repeatEnabled
-                        ? Theme.of(context).colorScheme.primary
-                        : null,
-                    icon: const Icon(Icons.repeat),
-                  ),
-                IconButton(
-                  tooltip: snapshot.isMuted ? 'Unmute' : 'Mute',
-                  onPressed: playback.toggleMute,
-                  icon: Icon(
-                    snapshot.isMuted ? Icons.volume_off : Icons.volume_up,
-                  ),
-                ),
-                SizedBox(
-                  width: compact ? 112 : 168,
-                  height: 48,
-                  child: SliderTheme(
-                    data: SliderTheme.of(context).copyWith(
-                      overlayShape: const RoundSliderOverlayShape(
-                        overlayRadius: 16,
+                  const SizedBox(width: 8),
+                  if (compact)
+                    IconButton(
+                      tooltip: snapshot.isPlaying ? 'Pause' : 'Play',
+                      onPressed: snapshot.isPlaying
+                          ? playback.pause
+                          : playback.resume,
+                      icon: Icon(
+                        snapshot.isPlaying ? Icons.pause : Icons.play_arrow,
                       ),
-                      trackHeight: 4,
                     ),
-                    child: Slider(
-                      value: snapshot.volume,
-                      onChanged: snapshot.isMuted ? null : playback.setVolume,
+                  IconButton(
+                    tooltip: 'Stop',
+                    onPressed: playback.stop,
+                    icon: const Icon(Icons.stop),
+                  ),
+                  if (!isRadio)
+                    IconButton(
+                      tooltip: 'Next',
+                      onPressed: playback.skipNext,
+                      icon: const Icon(Icons.skip_next),
+                    ),
+                  if (!isRadio)
+                    IconButton(
+                      tooltip: 'Shuffle',
+                      onPressed: playback.toggleShuffle,
+                      color: snapshot.shuffleEnabled
+                          ? Theme.of(context).colorScheme.primary
+                          : null,
+                      icon: const Icon(Icons.shuffle),
+                    ),
+                  if (!isRadio)
+                    IconButton(
+                      tooltip: 'Repeat',
+                      onPressed: playback.toggleRepeat,
+                      color: snapshot.repeatEnabled
+                          ? Theme.of(context).colorScheme.primary
+                          : null,
+                      icon: const Icon(Icons.repeat),
+                    ),
+                  if (MediaQuery.sizeOf(context).width >= 700)
+                    IconButton(
+                      tooltip: 'Sleep timer',
+                      onPressed: () => _showSleepTimerDialog(context, playback),
+                      color: playback.sleepTimerRemaining == null
+                          ? null
+                          : Theme.of(context).colorScheme.primary,
+                      icon: const Icon(Icons.bedtime_outlined),
+                    ),
+                  IconButton(
+                    tooltip: snapshot.isMuted ? 'Unmute' : 'Mute',
+                    onPressed: playback.toggleMute,
+                    icon: Icon(
+                      snapshot.isMuted ? Icons.volume_off : Icons.volume_up,
                     ),
                   ),
-                ),
-              ],
+                  SizedBox(
+                    width: compact || MediaQuery.sizeOf(context).width < 700
+                        ? 112
+                        : 168,
+                    height: 48,
+                    child: SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        overlayShape: const RoundSliderOverlayShape(
+                          overlayRadius: 16,
+                        ),
+                        trackHeight: 4,
+                      ),
+                      child: Slider(
+                        value: snapshot.volume,
+                        onChanged: snapshot.isMuted ? null : playback.setVolume,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
       ),
     );
   }
+}
+
+Future<void> _showSleepTimerDialog(
+  BuildContext context,
+  PlaybackService playback,
+) async {
+  final options = <Duration>[
+    const Duration(minutes: 15),
+    const Duration(minutes: 30),
+    const Duration(minutes: 45),
+    const Duration(minutes: 60),
+    const Duration(minutes: 90),
+  ];
+  await showDialog<void>(
+    context: context,
+    builder: (dialogContext) {
+      final remaining = playback.sleepTimerRemaining;
+      return AlertDialog(
+        title: const Text('Sleep timer'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (remaining != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text('Stops in ${_formatDuration(remaining)}'),
+              ),
+            for (final duration in options)
+              ListTile(
+                leading: const Icon(Icons.bedtime_outlined),
+                title: Text('${duration.inMinutes} minutes'),
+                onTap: () {
+                  playback.setSleepTimer(duration);
+                  Navigator.of(dialogContext).pop();
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.timer_off_outlined),
+              title: const Text('Turn off'),
+              enabled: remaining != null,
+              onTap: () {
+                playback.setSleepTimer(null);
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+          ],
+        ),
+      );
+    },
+  );
 }

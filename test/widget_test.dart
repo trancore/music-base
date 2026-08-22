@@ -106,6 +106,11 @@ void main() {
     expect(find.text('1 albums'), findsOneWidget);
     expect(find.text('sample collection'), findsWidgets);
 
+    await tester.tap(find.byTooltip('List view'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Grid view'), findsOneWidget);
+    expect(find.byType(ListTile), findsWidgets);
+
     await tester.tap(find.text('sample collection'));
     await tester.pumpAndSettle();
     expect(find.text('sample collection'), findsWidgets);

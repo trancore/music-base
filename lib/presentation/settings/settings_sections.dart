@@ -1,15 +1,16 @@
-﻿part of 'settings_page.dart';
+part of 'settings_page.dart';
 
 class VersionSection extends ConsumerWidget {
   const VersionSection({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final info = ref.watch(appVersionInfoProvider);
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: const Icon(Icons.info_outline),
-      title: const Text('Version'),
+      title: Text(l10n.version),
       subtitle: Text(info.label),
       trailing: Text(
         info.appName,
@@ -23,26 +24,30 @@ class DocumentationSection extends ConsumerWidget {
   const DocumentationSection({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.help_outline),
-        title: const Text('User guide (GitHub Pages)'),
-        subtitle: const Text(userGuideUrl),
-        trailing: const Icon(Icons.open_in_new),
-        onTap: () => _openGuide(context, ref),
-      ),
-      TextButton.icon(
-        onPressed: () => _copyGuideUrl(context),
-        icon: const Icon(Icons.copy),
-        label: const Text('Copy link'),
-      ),
-    ],
-  );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.help_outline),
+          title: Text(l10n.userGuide),
+          subtitle: const Text(userGuideUrl),
+          trailing: const Icon(Icons.open_in_new),
+          onTap: () => _openGuide(context, ref),
+        ),
+        TextButton.icon(
+          onPressed: () => _copyGuideUrl(context),
+          icon: const Icon(Icons.copy),
+          label: Text(l10n.copyLink),
+        ),
+      ],
+    );
+  }
 
   Future<void> _openGuide(BuildContext context, WidgetRef ref) async {
+    final l10n = AppLocalizations.of(context)!;
     var opened = false;
     try {
       opened = await ref.read(externalUrlLauncherProvider)(
@@ -54,19 +59,18 @@ class DocumentationSection extends ConsumerWidget {
     if (!context.mounted || opened) return;
     await Clipboard.setData(const ClipboardData(text: userGuideUrl));
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Could not open the user guide. The link was copied.'),
-      ),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(l10n.couldNotOpenGuide)));
   }
 
   Future<void> _copyGuideUrl(BuildContext context) async {
+    final l10n = AppLocalizations.of(context)!;
     await Clipboard.setData(const ClipboardData(text: userGuideUrl));
     if (!context.mounted) return;
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('User guide link copied.')));
+    ).showSnackBar(SnackBar(content: Text(l10n.userGuideLinkCopied)));
   }
 }
 
@@ -107,6 +111,7 @@ class LocalLibrarySourceSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     ref.watch(libraryProvider);
     final notifier = ref.read(libraryProvider.notifier);
     final sourcePath = notifier.sourcePath;
@@ -116,14 +121,14 @@ class LocalLibrarySourceSection extends ConsumerWidget {
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.folder_outlined),
-          title: const Text('Current source'),
-          subtitle: Text(sourcePath ?? 'No local directory configured.'),
+          title: Text(l10n.currentSource),
+          subtitle: Text(sourcePath ?? l10n.noLocalDirectory),
           trailing: FilledButton.icon(
             onPressed: notifier.isRefreshing
                 ? null
                 : () => _chooseDirectory(ref),
             icon: const Icon(Icons.folder_open),
-            label: const Text('Choose'),
+            label: Text(l10n.choose),
           ),
         ),
         if (notifier.refreshWarning case final warning?)
@@ -134,9 +139,7 @@ class LocalLibrarySourceSection extends ConsumerWidget {
         if (notifier.isRefreshing) ...[
           const LinearProgressIndicator(),
           const SizedBox(height: 8),
-          const Text(
-            'Scanning in the background. Cached music remains available.',
-          ),
+          Text(l10n.scanningCachedMusic),
         ],
       ],
     );

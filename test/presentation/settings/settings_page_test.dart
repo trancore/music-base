@@ -12,6 +12,7 @@ import 'package:music_base/domain/library/library_repository.dart';
 import 'package:music_base/domain/library/library_query.dart';
 import 'package:music_base/domain/library/library_track.dart';
 import 'package:music_base/domain/library/smb_source.dart';
+import 'package:music_base/l10n/generated/app_localizations.dart';
 import 'package:music_base/presentation/settings/settings_page.dart';
 
 void main() {
@@ -25,7 +26,11 @@ void main() {
             return true;
           }),
         ],
-        child: const MaterialApp(home: Scaffold(body: DocumentationSection())),
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const Scaffold(body: DocumentationSection()),
+        ),
       ),
     );
 
@@ -43,7 +48,9 @@ void main() {
             const _FakeLibraryRepository('/Music'),
           ),
         ],
-        child: const MaterialApp(
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(body: LocalLibrarySourceSection()),
         ),
       ),
@@ -73,7 +80,11 @@ void main() {
             _FakeSmbSettingsRepository(source),
           ),
         ],
-        child: const MaterialApp(home: Scaffold(body: SmbConnectionForm())),
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const Scaffold(body: SmbConnectionForm()),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -86,8 +97,12 @@ void main() {
 
   testWidgets('shows application version information', (tester) async {
     await tester.pumpWidget(
-      const ProviderScope(
-        child: MaterialApp(home: Scaffold(body: VersionSection())),
+      ProviderScope(
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const Scaffold(body: VersionSection()),
+        ),
       ),
     );
     await tester.pumpAndSettle();

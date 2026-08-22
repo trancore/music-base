@@ -1,14 +1,42 @@
+import 'dart:convert';
+
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 
 import '../../app/playback_providers.dart';
 import '../../app/radio_providers.dart';
 import '../../domain/radio/internet_radio_station.dart';
 import '../../domain/radio/radio_browser_station.dart';
+import '../../domain/radio/radio_station_sort.dart';
 import '../../domain/playback/playback_service.dart';
+import '../../app/providers.dart';
+import '../../data/radio/radio_station_transfer.dart';
 
 part 'radio_station_widgets.dart';
 part 'radio_dialogs.dart';
+
+typedef RadioStationFileOpener = Future<XFile?> Function();
+typedef RadioStationSaveLocationPicker = Future<FileSaveLocation?> Function();
+
+final radioStationFileOpenerProvider = Provider<RadioStationFileOpener>((ref) {
+  return () => openFile(
+    acceptedTypeGroups: const [
+      XTypeGroup(label: 'Internet radio stations', extensions: ['json']),
+    ],
+  );
+});
+
+final radioStationSaveLocationPickerProvider =
+    Provider<RadioStationSaveLocationPicker>((ref) {
+      return () => getSaveLocation(
+        suggestedName: 'internet-radio.json',
+        acceptedTypeGroups: const [
+          XTypeGroup(label: 'Internet radio stations', extensions: ['json']),
+        ],
+      );
+    });
 
 class RadioPage extends ConsumerWidget {
   const RadioPage({super.key});
@@ -17,9 +45,16 @@ class RadioPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final stations = ref.watch(radioStationProvider);
     final playback = ref.watch(playbackServiceProvider);
-    final sort = ref.watch(radioStationSortProvider);
+    final sort =
+        ref.watch(appSettingsProvider).valueOrNull?.radioStationSort ??
+        RadioStationSort.manual;
+    final isCompact = MediaQuery.sizeOf(context).width < 700;
+    final hasActivePlayback =
+        playback.snapshot.currentTrack != null ||
+        playback.snapshot.currentRadioStation != null;
     return Scaffold(
       appBar: AppBar(
+        primary: !(isCompact && hasActivePlayback),
         title: const Text('Internet radio'),
         actions: [
           IconButton(
@@ -32,10 +67,20 @@ class RadioPage extends ConsumerWidget {
             onPressed: () => _editStation(context, ref),
             icon: const Icon(Icons.add),
           ),
+          IconButton(
+            tooltip: 'Import stations',
+            onPressed: () => _importStations(context, ref),
+            icon: const Icon(Icons.file_open_outlined),
+          ),
+          IconButton(
+            tooltip: 'Export stations',
+            onPressed: () => _exportStations(context, ref),
+            icon: const Icon(Icons.save_alt_outlined),
+          ),
         ],
       ),
       body: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 2, 16, 24),
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
         child: stations.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, _) => Center(child: Text('$error')),
@@ -75,9 +120,8 @@ class RadioPage extends ConsumerWidget {
                           onChanged: (value) {
                             if (value != null) {
                               ref
-                                      .read(radioStationSortProvider.notifier)
-                                      .state =
-                                  value;
+                                  .read(appSettingsProvider.notifier)
+                                  .setRadioStationSort(value);
                             }
                           },
                         ),
@@ -110,6 +154,55 @@ class RadioPage extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _importStations(BuildContext context, WidgetRef ref) async {
+    final file = await ref.read(radioStationFileOpenerProvider)();
+    if (file == null || !context.mounted) return;
+    try {
+      final stations = RadioStationTransfer.decode(await file.readAsString());
+      final imported = await ref
+          .read(radioStationProvider.notifier)
+          .importStations(stations);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Imported $imported station(s).')));
+    } on Object catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not import stations: $error')),
+      );
+    }
+  }
+
+  Future<void> _exportStations(BuildContext context, WidgetRef ref) async {
+    final stations = ref.read(radioStationProvider).valueOrNull ?? const [];
+    if (stations.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('There are no stations to export.')),
+      );
+      return;
+    }
+    final location = await ref.read(radioStationSaveLocationPickerProvider)();
+    if (location == null || !context.mounted) return;
+    try {
+      final file = XFile.fromData(
+        utf8.encode(RadioStationTransfer.encode(stations)),
+        name: p.basename(location.path),
+        mimeType: 'application/json',
+      );
+      await file.saveTo(location.path);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Stations exported.')));
+    } on Object catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not export stations: $error')),
+      );
+    }
   }
 
   Future<void> _editStation(

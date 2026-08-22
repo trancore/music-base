@@ -9,8 +9,6 @@ import '../domain/radio/radio_stream_tester.dart';
 import '../domain/radio/radio_browser_service.dart';
 import 'providers.dart';
 
-enum RadioStationSort { manual, nameAscending, nameDescending, genre }
-
 final radioStationRepositoryProvider = Provider<RadioStationRepository>((ref) {
   return SharedPreferencesRadioStationRepository(
     preferences: ref.watch(sharedPreferencesProvider),
@@ -29,10 +27,6 @@ final radioStationProvider =
     AsyncNotifierProvider<RadioStationNotifier, List<InternetRadioStation>>(
       RadioStationNotifier.new,
     );
-
-final radioStationSortProvider = StateProvider<RadioStationSort>(
-  (ref) => RadioStationSort.manual,
-);
 
 class RadioStationNotifier extends AsyncNotifier<List<InternetRadioStation>> {
   late final RadioStationRepository _repository;
@@ -56,6 +50,25 @@ class RadioStationNotifier extends AsyncNotifier<List<InternetRadioStation>> {
   Future<void> reorder(List<InternetRadioStation> stations) async {
     await _repository.saveAll(stations);
     state = AsyncData(await _repository.loadAll());
+  }
+
+  Future<int> importStations(List<InternetRadioStation> imported) async {
+    final existing = await _repository.loadAll();
+    final ids = existing.map((station) => station.id).toSet();
+    final urls = existing.map((station) => station.streamUrl).toSet();
+    final additions = <InternetRadioStation>[];
+    for (final station in imported) {
+      if (ids.contains(station.id) || urls.contains(station.streamUrl)) {
+        continue;
+      }
+      ids.add(station.id);
+      urls.add(station.streamUrl);
+      additions.add(station);
+    }
+    if (additions.isEmpty) return 0;
+    await _repository.saveAll([...existing, ...additions]);
+    state = AsyncData(await _repository.loadAll());
+    return additions.length;
   }
 }
 
