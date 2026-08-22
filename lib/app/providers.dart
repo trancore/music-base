@@ -5,7 +5,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../data/database/app_database.dart';
 import '../data/settings/shared_preferences_settings_repository.dart';
 import '../domain/settings/app_settings.dart';
+import '../domain/settings/app_locale.dart';
 import '../domain/settings/settings_repository.dart';
+import '../domain/radio/radio_station_sort.dart';
 
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
   throw UnimplementedError('SharedPreferences must be provided at startup.');
@@ -43,6 +45,14 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettings> {
 
   Future<void> setAccentColor(int colorValue) async {
     await _update(state.valueOrNull?.copyWith(accentColorValue: colorValue));
+  }
+
+  Future<void> setRadioStationSort(RadioStationSort sort) async {
+    await _update(state.valueOrNull?.copyWith(radioStationSort: sort));
+  }
+
+  Future<void> setLocale(AppLocale locale) async {
+    await _update(state.valueOrNull?.copyWith(locale: locale));
   }
 
   Future<void> _update(AppSettings? next) async {

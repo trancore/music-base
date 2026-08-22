@@ -18,4 +18,6 @@ https://u1.happyhardcore.com/
 
 Saved stations can be played, edited, and deleted. Stream URLs can change when a station changes providers, so update the saved station if playback stops working. Station data is saved in the app settings on this device.
 
-Use the “Manual order”, “Name (A–Z)”, “Name (Z–A)”, or “Genre” sort options. Genre groups stations by their first genre tag and places stations without a genre under “Other”. In Manual order, drag a station using the handle on its left side. The manual order is saved on this device.
+Use the Import and Export actions at the top of the screen to transfer station names, stream URLs, descriptions, and genres as a JSON file. Stations with an existing ID or stream URL are skipped during import.
+
+Use the “Manual order”, “Name (A–Z)”, “Name (Z–A)”, or “Genre” sort options. The selected sort option is saved on this device and restored next time. Genre groups stations by their first genre tag and places stations without a genre under “Other”. In Manual order, drag a station using the handle on its left side. The manual order is also saved on this device.

@@ -99,6 +99,12 @@ class _FakePlaybackService extends ChangeNotifier implements PlaybackService {
   @override
   PlaybackSnapshot get snapshot => _snapshot;
 
+  @override
+  Duration? get sleepTimerRemaining => null;
+
+  @override
+  void setSleepTimer(Duration? duration) {}
+
   void updatePosition(Duration position) {
     _snapshot = PlaybackSnapshot(
       currentTrack: track,
@@ -126,6 +132,12 @@ class _RecordingPlaybackService extends ChangeNotifier
 
   @override
   PlaybackSnapshot get snapshot => _snapshot;
+
+  @override
+  Duration? get sleepTimerRemaining => null;
+
+  @override
+  void setSleepTimer(Duration? duration) {}
 
   @override
   Future<void> skipNext() async {

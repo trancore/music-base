@@ -12,7 +12,7 @@ If the SMB source cannot be refreshed, the most recently selected local source i
 
 Use the **Search library** field on the home screen to filter the cached tracks by title, artist, album, or file path. Search is case-insensitive and applies immediately while typing. The track list is a table: click the Title, Artist, Album, or Source header to toggle ascending and descending order. Double-click a track to play it.
 
-Use **Songs**, **Albums**, and **Artists** at the top of the home screen to change the browsing unit. Albums and artists appear as cards; selecting a card opens its tracks with paged loading. The play button on a card plays every track in that album or artist. The search field filters tracks, album names, or artist names according to the active view.
+Use **Songs**, **Albums**, and **Artists** at the top of the home screen to change the browsing unit. Albums and artists can be shown as cards or a list; use the view toggle on the right to switch between them. Selecting an item opens its tracks with paged loading. The play button plays every track in that album or artist. The search field filters tracks, album names, or artist names according to the active view.
 
 The library heading, search field, and table header stay fixed while browsing. When there are many tracks, only the track rows scroll inside the table.
 
