@@ -1,9 +1,11 @@
 import 'dart:convert';
 
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
+import 'package:share_plus/share_plus.dart';
 
 import '../../app/playback_providers.dart';
 import '../../app/radio_providers.dart';
@@ -19,6 +21,8 @@ part 'radio_dialogs.dart';
 
 typedef RadioStationFileOpener = Future<XFile?> Function();
 typedef RadioStationSaveLocationPicker = Future<FileSaveLocation?> Function();
+typedef RadioStationSharer =
+    Future<void> Function(Uint8List data, String fileName);
 
 final radioStationFileOpenerProvider = Provider<RadioStationFileOpener>((ref) {
   return () => openFile(
@@ -37,6 +41,20 @@ final radioStationSaveLocationPickerProvider =
         ],
       );
     });
+
+final radioStationSharerProvider = Provider<RadioStationSharer>((ref) {
+  return (data, fileName) async {
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [
+          XFile.fromData(data, name: fileName, mimeType: 'application/json'),
+        ],
+        fileNameOverrides: [fileName],
+        title: 'Export radio stations',
+      ),
+    );
+  };
+});
 
 class RadioPage extends ConsumerWidget {
   const RadioPage({super.key});
@@ -193,11 +211,24 @@ class RadioPage extends ConsumerWidget {
       );
       return;
     }
-    final location = await ref.read(radioStationSaveLocationPickerProvider)();
-    if (location == null || !context.mounted) return;
+    const fileName = 'internet-radio.json';
+    final data = Uint8List.fromList(
+      utf8.encode(RadioStationTransfer.encode(stations)),
+    );
     try {
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        await ref.read(radioStationSharerProvider)(data, fileName);
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Stations ready to share.')),
+        );
+        return;
+      }
+
+      final location = await ref.read(radioStationSaveLocationPickerProvider)();
+      if (location == null || !context.mounted) return;
       final file = XFile.fromData(
-        utf8.encode(RadioStationTransfer.encode(stations)),
+        data,
         name: p.basename(location.path),
         mimeType: 'application/json',
       );
