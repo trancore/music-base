@@ -20,4 +20,6 @@ Saved stations can be played, edited, and deleted. Stream URLs can change when a
 
 Use the Import and Export actions at the top of the screen to transfer station names, stream URLs, descriptions, and genres as a JSON file. Stations with an existing ID or stream URL are skipped during import.
 
+On Android, Export opens the system share sheet. Choose a file app or another destination to save the JSON file.
+
 Use the “Manual order”, “Name (A–Z)”, “Name (Z–A)”, or “Genre” sort options. The selected sort option is saved on this device and restored next time. Genre groups stations by their first genre tag and places stations without a genre under “Other”. In Manual order, drag a station using the handle on its left side. The manual order is also saved on this device.
